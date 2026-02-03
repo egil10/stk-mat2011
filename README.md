@@ -4,7 +4,7 @@
 
 ---
 
-## 📌 About
+## About
 
 This repository contains my project work for **STK-MAT2011**, a hands-on course where students apply mathematics and computational tools to solve real-world problems in finance, insurance, risk management, and data analysis.
 
@@ -16,7 +16,7 @@ The course focuses on:
 
 ---
 
-## 📂 Repository Structure
+## Repository Structure
 
 ```
 stk-mat2011/
@@ -30,7 +30,7 @@ stk-mat2011/
 
 ---
 
-## 📚 Prerequisites
+## Prerequisites
 
 | Required (at least one)                                      | Recommended                                  |
 |--------------------------------------------------------------|----------------------------------------------|
@@ -41,18 +41,18 @@ stk-mat2011/
 
 ---
 
-## 📝 Assessment
+## Assessment
 
 | Component              | Weight |
 |------------------------|--------|
 | Project Paper (LaTeX)  | 100%   |
-| Oral Presentation      | ✓      |
+| Oral Presentation      | Req.   |
 
 *Grading: Pass/Fail*
 
 ---
 
-## 🔗 Resources
+## Resources
 
 - [Course Page (UiO)](https://www.uio.no/studier/emner/matnat/math/STK-MAT2011/)
 - [LaTeX Documentation](https://www.overleaf.com/learn)
