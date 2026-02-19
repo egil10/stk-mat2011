@@ -1,7 +1,7 @@
-# STK-MAT2011: High-Frequency Trading & Machine Learning
-# Core dependencies for data analysis and visualization
-
 numpy>=1.24
 pandas>=2.0
 matplotlib>=3.7
 statsmodels>=0.14
+scipy>=1.10
+scikit-learn>=1.3
+hmmlearn>=0.3
