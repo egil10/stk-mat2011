@@ -1,89 +1,129 @@
-# STK-MAT2011 — Project Work in Finance, Insurance, Risk and Data Analysis
+# STK-MAT2011 — Machine Learning for High-Frequency Time Series
 
 > **University of Oslo** · Bachelor's Level · 10 Credits · Spring 2026
 
 ---
 
-## About
+## Motivation
 
-This repository contains my project work for **STK-MAT2011**, a hands-on course where students apply mathematics and computational tools to solve real-world problems in finance, insurance, risk management, and data analysis.
+High-frequency financial time series present unique challenges and opportunities for machine learning. Unlike traditional time series analysis, tick-by-tick data operates at millisecond resolution, capturing microstructure effects that vanish at lower frequencies. This project explores how modern ML techniques can extract meaningful patterns from this noisy, high-dimensional data.
 
-The course focuses on:
-- Problem analysis and structured problem-solving
-- Independent research under supervision
-- Scientific writing using **LaTeX**
-- Communicating technical results
+### Why High-Frequency Data?
 
----
+At the tick level, financial markets reveal microstructure dynamics invisible in daily or hourly aggregates:
 
-## Project: Machine Learning for High-Frequency Trading
+- **Market microstructure effects**: Bid-ask bounce, order flow clustering, and spread dynamics create autocorrelation patterns that violate standard random walk assumptions
+- **Regime switching**: Markets transition between volatility regimes (calm vs. turbulent) that require state-dependent models
+- **Information asymmetry**: Order flow and tick-level patterns contain signals about short-term price movements
+- **Latency arbitrage**: Microsecond-level patterns matter for algorithmic trading strategies
 
-This project explores **high-frequency forex tick data** (EUR/USD) using statistical analysis and machine learning techniques. The dataset contains over 1.5 million tick-level observations from January 2026.
+### Challenges
 
-### Key Analyses
-- **Price dynamics** — Bid/ask spread behavior and mid-price evolution
-- **Microstructure patterns** — Intraday spread variations across trading sessions
-- **Volatility modeling** — Realized variance and return distributions
-- **Trading activity** — Tick frequency and market liquidity patterns
+High-frequency data introduces several complications:
 
----
+- **Noise**: Tick-level prices are contaminated by bid-ask bounce and market microstructure noise
+- **Non-stationarity**: Market regimes change throughout the trading day, requiring adaptive models
+- **Curse of dimensionality**: Millions of observations with complex dependencies challenge traditional time series methods
+- **Overfitting risk**: Rich data can easily lead to spurious patterns without proper regularization
 
-## Repository Structure
+### Machine Learning Approaches
 
-```
-stk-mat2011/
-├── code/
-│   ├── data/
-│   │   ├── raw/                    # Raw EUR/USD tick CSVs (git-ignored)
-│   │   │   ├── DAT_ASCII_EURUSD_T_202601.csv    # Combined bid/ask (56 MB)
-│   │   │   ├── DAT_NT_EURUSD_T_ASK_202601.csv   # Ask prices (17 MB)
-│   │   │   ├── DAT_NT_EURUSD_T_BID_202601.csv   # Bid prices (17 MB)
-│   │   │   └── *.txt                            # Metadata & gap reports
-│   │   └── processed/              # Cleaned / feature-ready datasets (Parquet, CSV)
-│   ├── scripts/
-│   │   ├── visualize_forex.py      # Tick data visualization pipeline
-│   │   └── tick_microstructure_acf.py  # Tick-level microstructure ACF analysis
-│   ├── notebooks/          # Jupyter notebooks
-│   ├── oblig/              # Mandatory assignments
-│   └── plots/
-│       ├── eurusd_tick_analysis.pdf       # Visualization report
-│       └── tick_microstructure_acf.pdf    # Microstructure ACF report
-├── STK-MAT2011 - ML HFT.pdf   # Project report
-├── .gitignore
-└── README.md
-```
+This project investigates several ML frameworks:
+
+**Regime-Switching Models**
+- Hidden Markov Models (HMM) and Markov-switching autoregression to identify latent market states
+- Combining regime detection with volatility modeling (GARCH) for state-dependent dynamics
+
+**Pre-averaging and Feature Engineering**
+- Aggregating tick data into meaningful windows (time-based or tick-count based)
+- Extracting microstructure features: spreads, order flow imbalance, inter-tick durations
+
+**Rolling Window Analysis**
+- Fitting AR models on rolling windows to capture time-varying autocorrelation
+- Visualizing how model parameters evolve throughout trading days
+
+**Pairs Trading**
+- Cointegration analysis to identify mean-reverting relationships between currency pairs
+- ML-enhanced spread modeling for pairs trading strategies
 
 ---
 
-## Quick Start
+## Data Availability
 
-### Requirements
-```
-python >= 3.9
-pandas
-numpy
-matplotlib
-```
+| Symbol | Status | Available Since | Notes |
+|--------|--------|-----------------|-------|
+| **EUR/USD** | Available | Jan 2026 | ~1.5M ticks, millisecond resolution |
+| EUR/CHF | Not yet acquired | — | — |
+| EUR/GBP | Not yet acquired | — | — |
+| EUR/JPY | Not yet acquired | — | — |
+| EUR/AUD | Not yet acquired | — | — |
+| USD/CAD | Not yet acquired | — | — |
+| USD/CHF | Not yet acquired | — | — |
+| USD/JPY | Not yet acquired | — | — |
+| USD/MXN | Not yet acquired | — | — |
+| GBP/CHF | Not yet acquired | — | — |
+| GBP/JPY | Not yet acquired | — | — |
+| GBP/USD | Not yet acquired | — | — |
+| AUD/JPY | Not yet acquired | — | — |
+| AUD/USD | Not yet acquired | — | — |
+| CHF/JPY | Not yet acquired | — | — |
+| NZD/JPY | Not yet acquired | — | — |
+| NZD/USD | Not yet acquired | — | — |
+| **XAU/USD** | Not yet acquired | — | Target: metals pair |
+| EUR/CAD | Not yet acquired | — | — |
+| AUD/CAD | Not yet acquired | — | — |
+| CAD/JPY | Not yet acquired | — | — |
+| EUR/NZD | Not yet acquired | — | — |
+| GRX/EUR | Not yet acquired | — | — |
+| NZD/CAD | Not yet acquired | — | — |
+| SGD/JPY | Not yet acquired | — | — |
+| USD/HKD | Not yet acquired | — | — |
+| USD/NOK | Not yet acquired | — | — |
+| **USD/TRY** | Not yet acquired | — | Target: EM pair |
+| XAU/AUD | Not yet acquired | — | — |
+| AUD/CHF | Not yet acquired | — | — |
+| AUX/AUD | Not yet acquired | — | — |
+| EUR/HUF | Not yet acquired | — | — |
+| EUR/PLN | Not yet acquired | — | — |
+| FRX/EUR | Not yet acquired | — | — |
+| HKX/HKD | Not yet acquired | — | — |
+| NZD/CHF | Not yet acquired | — | — |
+| SPX/USD | Not yet acquired | — | — |
+| USD/HUF | Not yet acquired | — | — |
+| USD/PLN | Not yet acquired | — | — |
+| **USD/ZAR** | Not yet acquired | — | Target: EM pair |
+| XAU/CHF | Not yet acquired | — | — |
+| ZAR/JPY | Not yet acquired | — | — |
+| BCO/USD | Not yet acquired | — | — |
+| ETX/EUR | Not yet acquired | — | — |
+| EUR/CZK | Not yet acquired | — | — |
+| EUR/SEK | Not yet acquired | — | — |
+| GBP/AUD | Not yet acquired | — | — |
+| GBP/NZD | Not yet acquired | — | — |
+| JPX/JPY | Not yet acquired | — | — |
+| UDX/USD | Not yet acquired | — | — |
+| USD/CZK | Not yet acquired | — | — |
+| USD/SEK | Not yet acquired | — | — |
+| WTI/USD | Not yet acquired | — | — |
+| XAU/EUR | Not yet acquired | — | — |
+| AUD/NZD | Not yet acquired | — | — |
+| CAD/CHF | Not yet acquired | — | — |
+| EUR/DKK | Not yet acquired | — | — |
+| EUR/NOK | Not yet acquired | — | — |
+| EUR/TRY | Not yet acquired | — | — |
+| GBP/CAD | Not yet acquired | — | — |
+| NSX/USD | Not yet acquired | — | — |
+| UKX/GBP | Not yet acquired | — | — |
+| USD/DKK | Not yet acquired | — | — |
+| USD/SGD | Not yet acquired | — | — |
+| XAG/USD | Not yet acquired | — | — |
+| XAU/GBP | Not yet acquired | — | — |
 
-### Generate Visualizations
-```bash
-cd stk-mat2011
-python code/scripts/visualize_forex.py
-```
-
-This produces a 6-panel PDF with:
-1. Price overview (bid/ask/mid with spread shading)
-2. Bid-ask spread distribution
-3. Intraday spread patterns by hour
-4. Log returns distribution vs. normal
-5. Trading activity (tick frequency)
-6. Daily realized volatility
+**Data source:** [HistData.com](https://www.histdata.com/)
 
 ---
 
-## Data
-
-The forex tick data is sourced from [HistData.com](https://www.histdata.com/) and contains millisecond-resolution EUR/USD quotes. Large CSV files are excluded from version control via `.gitignore`.
+## Current Dataset (EUR/USD)
 
 | Metric | Value |
 |--------|-------|
@@ -95,25 +135,13 @@ The forex tick data is sourced from [HistData.com](https://www.histdata.com/) an
 
 ---
 
-## Prerequisites
+## Quick Start
 
-| Required (at least one)                                      | Recommended                                  |
-|--------------------------------------------------------------|----------------------------------------------|
-| STK2100 – Machine Learning and Prediction                    | STK1100 – Probability and Statistical Modelling |
-| STK2130 – Modelling by Stochastic Processes                  | MAT1100/MAT1110 – Calculus                   |
-|                                                              | MAT1120/MAT1125 – Linear Algebra             |
-|                                                              | IN1900/IN1910 – Scientific Programming       |
-
----
-
-## Assessment
-
-| Component              | Weight |
-|------------------------|--------|
-| Project Paper (LaTeX)  | 100%   |
-| Oral Presentation      | Req.   |
-
-*Grading: Pass/Fail*
+```bash
+pip install -r requirements.txt
+python code/scripts/visualize_forex.py
+python code/scripts/tick_microstructure_acf.py
+```
 
 ---
 
@@ -121,7 +149,6 @@ The forex tick data is sourced from [HistData.com](https://www.histdata.com/) an
 
 - [Course Page (UiO)](https://www.uio.no/studier/emner/matnat/math/STK-MAT2011/)
 - [HistData – Free Forex Historical Data](https://www.histdata.com/)
-- [LaTeX Documentation](https://www.overleaf.com/learn)
 
 ---
 
