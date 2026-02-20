@@ -52,26 +52,29 @@ This project investigates several ML frameworks:
 
 | Symbol | Status | Available Since | Notes |
 |--------|--------|-----------------|-------|
-| **EUR/USD** | Available | Jan 2026 | ~1.5M ticks, millisecond resolution |
-| EUR/CHF | Not yet acquired | — | — |
-| EUR/GBP | Not yet acquired | — | — |
-| EUR/JPY | Not yet acquired | — | — |
-| EUR/AUD | Not yet acquired | — | — |
-| USD/CAD | Not yet acquired | — | — |
-| USD/CHF | Not yet acquired | — | — |
+| **EUR/USD** | Available | Jan 2026 | ASCII + ASK/BID formats, ~1.5M ticks |
+| **EUR/CHF** | Available | Jan–Feb 2026 | Tick data |
+| **EUR/GBP** | Available | Jan–Feb 2026 | Tick data |
+| **EUR/JPY** | Available | Jan–Feb 2026 | Tick data |
+| **EUR/AUD** | Available | Jan–Feb 2026 | Tick data |
+| **EUR/CAD** | Available | Jan–Feb 2026 | Tick data |
+| **EUR/DKK** | Available | Jan–Feb 2026 | Tick data |
+| **USD/CAD** | Available | Jan–Feb 2026 | Tick data |
+| **USD/CHF** | Available | Jan–Feb 2026 | Tick data |
+| **USD/ZAR** | Available | Jan–Feb 2026 | EM pair, tick data |
+| **GBP/USD** | Available | Jan–Feb 2026 | Tick data |
+| **GBP/JPY** | Available | Jan–Feb 2026 | Tick data |
+| **AUD/USD** | Available | Jan–Feb 2026 | Tick data |
+| **AUD/JPY** | Available | Jan–Feb 2026 | Tick data |
+| **AUD/CAD** | Available | Jan–Feb 2026 | Tick data |
+| **CHF/JPY** | Available | Jan–Feb 2026 | Tick data |
+| **NZD/USD** | Available | Jan–Feb 2026 | Tick data |
+| **NZD/JPY** | Available | Jan–Feb 2026 | Tick data |
+| **XAU/USD** | Available | Jan–Feb 2026 | Metals pair, tick data |
+| **BCO/USD** | Available | Jan–Feb 2026 | Commodity, tick data |
 | USD/JPY | Not yet acquired | — | — |
 | USD/MXN | Not yet acquired | — | — |
 | GBP/CHF | Not yet acquired | — | — |
-| GBP/JPY | Not yet acquired | — | — |
-| GBP/USD | Not yet acquired | — | — |
-| AUD/JPY | Not yet acquired | — | — |
-| AUD/USD | Not yet acquired | — | — |
-| CHF/JPY | Not yet acquired | — | — |
-| NZD/JPY | Not yet acquired | — | — |
-| NZD/USD | Not yet acquired | — | — |
-| **XAU/USD** | Not yet acquired | — | Target: metals pair |
-| EUR/CAD | Not yet acquired | — | — |
-| AUD/CAD | Not yet acquired | — | — |
 | CAD/JPY | Not yet acquired | — | — |
 | EUR/NZD | Not yet acquired | — | — |
 | GRX/EUR | Not yet acquired | — | — |
@@ -79,7 +82,7 @@ This project investigates several ML frameworks:
 | SGD/JPY | Not yet acquired | — | — |
 | USD/HKD | Not yet acquired | — | — |
 | USD/NOK | Not yet acquired | — | — |
-| **USD/TRY** | Not yet acquired | — | Target: EM pair |
+| USD/TRY | Not yet acquired | — | — |
 | XAU/AUD | Not yet acquired | — | — |
 | AUD/CHF | Not yet acquired | — | — |
 | AUX/AUD | Not yet acquired | — | — |
@@ -91,10 +94,8 @@ This project investigates several ML frameworks:
 | SPX/USD | Not yet acquired | — | — |
 | USD/HUF | Not yet acquired | — | — |
 | USD/PLN | Not yet acquired | — | — |
-| **USD/ZAR** | Not yet acquired | — | Target: EM pair |
 | XAU/CHF | Not yet acquired | — | — |
 | ZAR/JPY | Not yet acquired | — | — |
-| BCO/USD | Not yet acquired | — | — |
 | ETX/EUR | Not yet acquired | — | — |
 | EUR/CZK | Not yet acquired | — | — |
 | EUR/SEK | Not yet acquired | — | — |
@@ -108,7 +109,6 @@ This project investigates several ML frameworks:
 | XAU/EUR | Not yet acquired | — | — |
 | AUD/NZD | Not yet acquired | — | — |
 | CAD/CHF | Not yet acquired | — | — |
-| EUR/DKK | Not yet acquired | — | — |
 | EUR/NOK | Not yet acquired | — | — |
 | EUR/TRY | Not yet acquired | — | — |
 | GBP/CAD | Not yet acquired | — | — |
