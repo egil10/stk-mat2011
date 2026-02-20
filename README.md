@@ -121,6 +121,11 @@ This project investigates several ML frameworks:
 
 **Data source:** [HistData.com](https://www.histdata.com/)
 
+**NinjaTrader downloads (HistData):**
+- [Tick (Last quotes)](https://www.histdata.com/download-free-forex-data/?/ninjatrader/tick-last-quotes)
+- [Tick (Bid quotes)](https://www.histdata.com/download-free-forex-data/?/ninjatrader/tick-bid-quotes)
+- [Tick (Ask quotes)](https://www.histdata.com/download-free-forex-data/?/ninjatrader/tick-ask-quotes)
+
 ---
 
 ## Current Dataset (EUR/USD)
