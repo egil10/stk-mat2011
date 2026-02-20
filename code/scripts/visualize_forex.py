@@ -18,7 +18,7 @@ from pathlib import Path
 
 # Paths (relative to script location)
 SCRIPT_DIR = Path(__file__).parent
-DATA_DIR = SCRIPT_DIR.parent / "data"
+DATA_DIR = SCRIPT_DIR.parent / "data" / "raw"
 PLOTS_DIR = SCRIPT_DIR.parent / "plots"
 
 # Data files

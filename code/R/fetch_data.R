@@ -35,7 +35,13 @@ returns_matrix <- raw_data %>%
   pivot_wider(names_from = symbol, values_from = daily_return) %>%
   drop_na()
 
-# 5. --- Save the Data ---
+# 5. --- Setup the Save Directory (processed data) ---
+data_dir <- "../data/processed"
+if (!dir.exists(data_dir)) {
+  dir.create(data_dir, recursive = TRUE)
+}
+
+# 6. --- Save the Data ---
 
 # Option A: Save as Parquet (Highly recommended for Python handoff)
 write_parquet(price_matrix, file.path(data_dir, "15_asset_prices.parquet"))
@@ -45,5 +51,5 @@ write_parquet(returns_matrix, file.path(data_dir, "15_asset_returns.parquet"))
 write_csv(price_matrix, file.path(data_dir, "15_asset_prices.csv"))
 write_csv(returns_matrix, file.path(data_dir, "15_asset_returns.csv"))
 
-print("Data successfully saved to ../data!")
+print("Data successfully saved to ../data/processed!")
 

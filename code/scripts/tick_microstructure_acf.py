@@ -24,7 +24,7 @@ from pathlib import Path
 # ==============================================================================
 
 SCRIPT_DIR = Path(__file__).parent
-DATA_DIR = SCRIPT_DIR.parent / "data"
+DATA_DIR = SCRIPT_DIR.parent / "data" / "raw"
 PLOTS_DIR = SCRIPT_DIR.parent / "plots"
 
 ASCII_FILE = DATA_DIR / "DAT_ASCII_EURUSD_T_202601.csv"
