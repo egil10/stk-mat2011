@@ -33,17 +33,21 @@ This project explores **high-frequency forex tick data** (EUR/USD) using statist
 ```
 stk-mat2011/
 ├── code/
-│   ├── data/               # EUR/USD tick data (git-ignored)
-│   │   ├── DAT_ASCII_EURUSD_T_202601.csv    # Combined bid/ask (56 MB)
-│   │   ├── DAT_NT_EURUSD_T_ASK_202601.csv   # Ask prices (17 MB)
-│   │   ├── DAT_NT_EURUSD_T_BID_202601.csv   # Bid prices (17 MB)
-│   │   └── *.txt                             # Metadata & gap reports
+│   ├── data/
+│   │   ├── raw/                    # Raw EUR/USD tick CSVs (git-ignored)
+│   │   │   ├── DAT_ASCII_EURUSD_T_202601.csv    # Combined bid/ask (56 MB)
+│   │   │   ├── DAT_NT_EURUSD_T_ASK_202601.csv   # Ask prices (17 MB)
+│   │   │   ├── DAT_NT_EURUSD_T_BID_202601.csv   # Bid prices (17 MB)
+│   │   │   └── *.txt                            # Metadata & gap reports
+│   │   └── processed/              # Cleaned / feature-ready datasets (Parquet, CSV)
 │   ├── scripts/
-│   │   └── visualize_forex.py   # Data visualization pipeline
+│   │   ├── visualize_forex.py      # Tick data visualization pipeline
+│   │   └── tick_microstructure_acf.py  # Tick-level microstructure ACF analysis
 │   ├── notebooks/          # Jupyter notebooks
 │   ├── oblig/              # Mandatory assignments
 │   └── plots/
-│       └── eurusd_tick_analysis.pdf   # Generated visualizations
+│       ├── eurusd_tick_analysis.pdf       # Visualization report
+│       └── tick_microstructure_acf.pdf    # Microstructure ACF report
 ├── STK-MAT2011 - ML HFT.pdf   # Project report
 ├── .gitignore
 └── README.md

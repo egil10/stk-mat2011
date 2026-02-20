@@ -1,4 +1,5 @@
-# Data files - large CSVs
+# Data files - large CSVs and raw data (not tracked)
+code/data/raw/
 code/data/*.csv
 
 # Python
