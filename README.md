@@ -6,7 +6,7 @@
 
 ## Motivation
 
-High-frequency financial time series present unique challenges and opportunities for machine learning. Unlike traditional time series analysis, tick-by-tick data operates at millisecond resolution, capturing microstructure effects that vanish at lower frequencies. This project explores how modern ML techniques can extract meaningful patterns from this noisy, high-dimensional data.
+High-frequency financial time series present unique challenges and opportunities for machine learning. Unlike traditional time series analysis, tick-by-tick data operates at millisecond resolution, capturing microstructure effects that vanish at lower frequencies. This project explores how modern ML techniques can extract meaningful patterns from this noisy, high-dimensional data!
 
 ### Why High-Frequency Data?
 
