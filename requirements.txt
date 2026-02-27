@@ -26,6 +26,7 @@ yfinance>=0.2.50
 #   "hmmr",
 #   "MSGARCH",
 #   "PerformanceAnalytics",
+#   "Rsolnp",
 #   "quantmod",
 #   "rugarch",
 #   "tidyquant",
