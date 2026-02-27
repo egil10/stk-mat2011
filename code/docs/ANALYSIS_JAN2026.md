@@ -34,7 +34,8 @@ January 2026.
 | `AR1.py`       | Rolling / non-overlapping AR(1) estimation     |
 | `hmm.py`       | HMM regime detection (Gaussian HMM)            |
 | `ms_ar.py`     | Markov-Switching AR (statsmodels)              |
-| `ms_garch.py`  | Markov-Switching GARCH (R via rpy2)            |
+| `ms_garch.py`  | MS-GARCH Plotly plots (reads R output)         |
+| `R/ms_garch.R` | MS-GARCH fitting via R's MSGARCH package        |
 
 ## EDA (plots_jan.py)
 
@@ -168,11 +169,11 @@ for tractable MLE.
 | `ms_ar_gnp_macro.html` | `plots/plotly/` |
 | `ms_ar_{pair}_202601.html` | `plots/plotly/` |
 
-## MS-GARCH Modelling (ms_garch.py)
+## MS-GARCH Modelling (R/ms_garch.R + scripts/ms_garch.py)
 
 ### Model
 
-Markov-Switching GARCH via R's `MSGARCH` package (bridged through `rpy2`).
+Markov-Switching GARCH via R's `MSGARCH` package.
 Specification: 2-regime sGARCH with Normal innovations.
 
 **Part 1 — Simulated demo:** 1000 days of N(0,1) returns with high-vol
@@ -182,11 +183,15 @@ switch in conditional volatility.
 **Part 2 — Tick data:** Same subsampled log-returns as MS-AR, fitted with
 MS-GARCH. Outputs conditional volatility time series.
 
+### Workflow
+
+1. Run `code/R/ms_garch.R` in RStudio → produces PDFs + CSVs
+2. Run `python code/scripts/ms_garch.py` → reads CSVs, produces HTML plots
+
 ### Prerequisites
 
-- R must be installed and in PATH
-- `install.packages("MSGARCH")` run from an R console
-- `pip install rpy2`
+- R + RStudio installed
+- `install.packages(c("MSGARCH", "arrow"))` run from R console
 
 ### Output
 
@@ -194,6 +199,8 @@ MS-GARCH. Outputs conditional volatility time series.
 |------|----------|
 | `ms_garch_simulated.pdf` | `plots/models/` |
 | `ms_garch_{pair}_202601.pdf` | `plots/models/` |
+| `ms_garch_simulated.csv` | `plots/models/` |
+| `ms_garch_{pair}_202601.csv` | `plots/models/` |
 | `ms_garch_simulated.html` | `plots/plotly/` |
 | `ms_garch_{pair}_202601.html` | `plots/plotly/` |
 
@@ -214,5 +221,9 @@ python code/scripts/data_jan.py      # verify data loads
 python code/scripts/plots_jan.py     # generate EDA plots (~3 min)
 python code/scripts/AR1.py           # generate AR(1) plots (~10 min)
 python code/scripts/ms_ar.py         # MS-AR macro + tick plots (~5 min)
-python code/scripts/ms_garch.py      # MS-GARCH (requires R) (~10 min)
+
+# MS-GARCH (two-step: R then Python):
+# 1. Open code/R/ms_garch.R in RStudio and source it (~10 min)
+# 2. Then generate interactive HTML plots:
+python code/scripts/ms_garch.py
 ```
