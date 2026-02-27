@@ -32,7 +32,9 @@ January 2026.
 | `data_jan.py`  | Data loading & mid-price construction          |
 | `plots_jan.py` | EDA plots: ticks, gaps, microstructure, preavg |
 | `AR1.py`       | Rolling / non-overlapping AR(1) estimation     |
-| `hmm.py`       | HMM regime detection (skeleton)                |
+| `hmm.py`       | HMM regime detection (Gaussian HMM)            |
+| `ms_ar.py`     | Markov-Switching AR (statsmodels)              |
+| `ms_garch.py`  | Markov-Switching GARCH (R via rpy2)            |
 
 ## EDA (plots_jan.py)
 
@@ -143,11 +145,64 @@ Per pair (× 3 pairs):
 - `ar1_{pair}_multiday_w500_rolling.pdf`  
 - `ar1_{pair}_multiday_w500_rolling_pre100ms.pdf`  
 
+## MS-AR Modelling (ms_ar.py)
+
+### Model
+
+Markov-Switching Autoregression:  
+`y_t = μ_{S_t} + φ · (y_{t-1} − μ_{S_{t-1}}) + ε_t`
+
+**Part 1 — Macro demo:** Fits MS-AR(4) on US Real GNP growth (statsmodels
+macrodata). Regime 0 captures recessions (low growth + high variance).
+
+**Part 2 — Tick data:** Fits MS-AR(1) with `switching_variance=True` on
+100 ms pre-averaged log-returns for each pair. Subsampled to ~10k points
+for tractable MLE.
+
+### Output
+
+| File | Location |
+|------|----------|
+| `ms_ar_gnp_macro.pdf` | `plots/models/` |
+| `ms_ar_{pair}_202601.pdf` | `plots/models/` |
+| `ms_ar_gnp_macro.html` | `plots/plotly/` |
+| `ms_ar_{pair}_202601.html` | `plots/plotly/` |
+
+## MS-GARCH Modelling (ms_garch.py)
+
+### Model
+
+Markov-Switching GARCH via R's `MSGARCH` package (bridged through `rpy2`).
+Specification: 2-regime sGARCH with Normal innovations.
+
+**Part 1 — Simulated demo:** 1000 days of N(0,1) returns with high-vol
+(σ=3) injected between days 400–600. The model should recover the regime
+switch in conditional volatility.
+
+**Part 2 — Tick data:** Same subsampled log-returns as MS-AR, fitted with
+MS-GARCH. Outputs conditional volatility time series.
+
+### Prerequisites
+
+- R must be installed and in PATH
+- `install.packages("MSGARCH")` run from an R console
+- `pip install rpy2`
+
+### Output
+
+| File | Location |
+|------|----------|
+| `ms_garch_simulated.pdf` | `plots/models/` |
+| `ms_garch_{pair}_202601.pdf` | `plots/models/` |
+| `ms_garch_simulated.html` | `plots/plotly/` |
+| `ms_garch_{pair}_202601.html` | `plots/plotly/` |
+
 ## Next steps
 
-- [ ] Implement HMM regime detection (2-3 states: low/high vol, trending/mean-reverting)
+- [x] Implement HMM regime detection (2-3 states: low/high vol)
+- [x] Extend to regime-switching autoregression (MS-AR)
+- [x] Extend to regime-switching GARCH (MS-GARCH)
 - [ ] Explore pairs trading — cointegration tests between pairs  
-- [ ] Extend to ARCH/GARCH volatility models  
 - [ ] Add non-overlapping AR(1) comparison  
 - [ ] Test across all available currency pairs  
 
@@ -158,4 +213,6 @@ Per pair (× 3 pairs):
 python code/scripts/data_jan.py      # verify data loads
 python code/scripts/plots_jan.py     # generate EDA plots (~3 min)
 python code/scripts/AR1.py           # generate AR(1) plots (~10 min)
+python code/scripts/ms_ar.py         # MS-AR macro + tick plots (~5 min)
+python code/scripts/ms_garch.py      # MS-GARCH (requires R) (~10 min)
 ```

@@ -24,14 +24,16 @@
 
 ```
 code/
-├── scripts/     # runnable scripts (data_jan.py, plots_jan.py, AR1.py, hmm.py)
+├── scripts/     # runnable scripts (data_jan.py, plots_jan.py, AR1.py, hmm.py,
+│                #   ms_ar.py, ms_garch.py)
 ├── data/
 │   ├── raw/         # original downloaded archives (gitignored)
 │   ├── processed/   # parquet tick data (gitignored)
 │   └── samples/     # small CSV samples (tracked)
 ├── plots/
 │   ├── jan/         # EDA & pre-averaging plots
-│   ├── models/      # AR(1), HMM, etc.
+│   ├── models/      # AR(1), HMM, MS-AR, MS-GARCH PDFs
+│   ├── plotly/      # interactive HTML plots (Plotly)
 │   └── final/       # polished figures for reports
 ├── docs/            # markdown documentation
 └── notebooks/       # exploratory Jupyter notebooks
