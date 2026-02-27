@@ -216,7 +216,8 @@ def plot_ar1_multiday(
 
         # Convert to intra-day time (hours since midnight)
         t0 = np.datetime64(f"{date}T00:00:00")
-        hours = (res["t_mid"].to_numpy().astype("datetime64[ms]") - t0) / np.timedelta64(1, "h")
+        t_mid = pd.to_datetime(res["t_mid"]).dt.tz_localize(None).to_numpy().astype("datetime64[ms]")
+        hours = (t_mid - t0) / np.timedelta64(1, "h")
 
         fig.add_trace(
             go.Scatter(
@@ -260,30 +261,38 @@ def plot_ar1_multiday(
 # main
 # ---------------------------------------------------------------------------
 def main() -> None:
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     print("Loading data...")
     data = load_three_pairs()
 
     sample_days = ["2026-01-06", "2026-01-08", "2026-01-15", "2026-01-22"]
     window_sizes = [200, 500, 1000]
+    pre_time = PreParams(mode="time", window_ms=100)
+    pre_tick = PreParams(mode="ticks", n_ticks=10)
 
+    # Build task list
+    tasks = []
     for td in data.values():
-        print(f"\n=== {td.pair} ===")
-
-        # A) Raw (no pre-averaging) — single day, different window sizes
+        # A) Raw — single day, different window sizes
         for ws in window_sizes:
-            plot_ar1_day(td, "2026-01-15", window_size=ws, mode="rolling")
+            tasks.append((plot_ar1_day, (td, "2026-01-15"), dict(window_size=ws, mode="rolling")))
 
         # B) With pre-averaging — 100ms time window
-        pre_time = PreParams(mode="time", window_ms=100)
-        plot_ar1_day(td, "2026-01-15", window_size=200, pre_params=pre_time)
+        tasks.append((plot_ar1_day, (td, "2026-01-15"), dict(window_size=200, pre_params=pre_time)))
 
         # C) With pre-averaging — 10 ticks
-        pre_tick = PreParams(mode="ticks", n_ticks=10)
-        plot_ar1_day(td, "2026-01-15", window_size=200, pre_params=pre_tick)
+        tasks.append((plot_ar1_day, (td, "2026-01-15"), dict(window_size=200, pre_params=pre_tick)))
 
         # D) Multi-day overlay
-        plot_ar1_multiday(td, sample_days, window_size=500)
-        plot_ar1_multiday(td, sample_days, window_size=500, pre_params=pre_time)
+        tasks.append((plot_ar1_multiday, (td, sample_days), dict(window_size=500)))
+        tasks.append((plot_ar1_multiday, (td, sample_days), dict(window_size=500, pre_params=pre_time)))
+
+    print(f"\nGenerating {len(tasks)} AR(1) plots in parallel...")
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        futures = [pool.submit(fn, *args, **kw) for fn, args, kw in tasks]
+        for f in as_completed(futures):
+            f.result()
 
     print(f"\nAll AR(1) plots saved to {MODELS_DIR.relative_to(PROJECT_ROOT)}")
 

@@ -306,6 +306,8 @@ def plot_month_overview(td: TickData) -> None:
 # main
 # ---------------------------------------------------------------------------
 def main() -> None:
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     print("Loading data...")
     data = load_three_pairs()
 
@@ -318,14 +320,21 @@ def main() -> None:
     # Sample days (Mon-Fri in Jan 2026)
     sample_days = ["2026-01-06", "2026-01-15", "2026-01-22"]
 
+    # Build task list
+    tasks = []
     for td in data.values():
-        print(f"\n--- {td.pair} ---")
-        plot_month_overview(td)
-        plot_ticks_and_gaps(td)
-        plot_microstructure(td)
+        tasks.append((plot_month_overview, (td,)))
+        tasks.append((plot_ticks_and_gaps, (td,)))
+        tasks.append((plot_microstructure, (td,)))
         for day in sample_days:
-            plot_preavg_day(td, day, time_params)
-            plot_preavg_day(td, day, tick_params)
+            tasks.append((plot_preavg_day, (td, day, time_params)))
+            tasks.append((plot_preavg_day, (td, day, tick_params)))
+
+    print(f"\nGenerating {len(tasks)} plots in parallel...")
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        futures = [pool.submit(fn, *args) for fn, args in tasks]
+        for f in as_completed(futures):
+            f.result()  # raise if any exception
 
     print(f"\nAll plots saved to {PLOTS_DIR.relative_to(PROJECT_ROOT)}")
 
