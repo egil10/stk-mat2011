@@ -1,4 +1,4 @@
-# STK-MAT2011 — Machine Learning for High-Frequency Time Series
+# Machine Learning for High-Frequency Time Series
 
 > **University of Oslo** · Bachelor's Level · 10 Credits · Spring 2026
 
