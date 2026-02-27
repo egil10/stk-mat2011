@@ -3,14 +3,32 @@ dukascopy-python>=4.0
 hmmlearn>=0.3
 kaleido>=0.2.1
 matplotlib>=3.7
+nautilus-trader>=1.221.0
+numba>=0.61
 numpy>=1.24
 pandas>=2.0
 plotly>=5.0
+polars>=1.38
 pyarrow>=14.0
 requests>=2.31
 scikit-learn>=1.3
 scipy>=1.10
 statsmodels>=0.14
+vectorbt>=0.28.4
+yfinance>=0.2.50
 
-# --- R packages (install in RStudio) ---
-# install.packages(c("arrow", "MSGARCH", "tidyquant", "tidyverse"))
+# R packages
+# install.packages(c(
+#   "arrow",
+#   "depmixS4",
+#   "fpp3",
+#   "highfrequency",
+#   "hmmr",
+#   "MSGARCH",
+#   "PerformanceAnalytics",
+#   "quantmod",
+#   "rugarch",
+#   "tidyquant",
+#   "tidyverse",
+#   "TTR"
+# ))
