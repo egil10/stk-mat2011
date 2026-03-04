@@ -12,6 +12,10 @@ code/data/*.csv
 
 # Python
 __pycache__/
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 *.py[cod]
 *$py.class
 *.so
@@ -27,6 +31,15 @@ ENV/
 # Jupyter Notebooks
 .ipynb_checkpoints/
 *.ipynb_checkpoints
+
+# R
+.Rhistory
+*.Rhistory
+.RData
+*.RData
+.Ruserdata
+.Rproj.user/
+.Rapp.history
 
 # IDE
 .idea/
@@ -62,3 +75,11 @@ credentials.json
 *.pb
 *.tar
 *.rar
+
+# Temporary / Backup
+*.tmp
+*.temp
+*~
+.directory
+.fuse_hidden*
+trash-*/
