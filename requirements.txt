@@ -16,8 +16,7 @@ scipy>=1.10
 statsmodels>=0.14
 vectorbt>=0.28.4
 yfinance>=0.2.50
-# pomegranate
-
+pomegranate>=1.1.2
 
 # R packages
 # install.packages(c(

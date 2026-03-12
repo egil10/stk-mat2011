@@ -9,6 +9,17 @@ code/data/*.csv
 *.zip
 *.7z
 *.gz
+*.pdf
+*.html
+
+# Plots - ignore generated exploration/modeling plots
+code/plots/eda/
+code/plots/models/
+
+# Whitelist important artifacts
+!code/plots/final/**
+!code/materials/**
+!/*.pdf
 
 # Python
 __pycache__/

@@ -1,5 +1,5 @@
 """
-AR1.py — Rolling and non-overlapping AR(1) estimation on tick data.
+ar1.py — Rolling and non-overlapping AR(1) estimation on tick data.
 
 Fits AR(1) on rolling / non-overlapping windows through a trading day,
 plots estimated phi (autoregressive coefficient) and sigma (residual std)
@@ -17,8 +17,8 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from data_jan import TickData, load_three_pairs
-from plots_jan import preavg, PreParams
+from data import TickData, load_three_pairs
+from viz import preavg, PreParams
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parents[1]
