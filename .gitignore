@@ -12,12 +12,10 @@ code/data/*.csv
 *.pdf
 *.html
 
-# Plots - ignore generated exploration/modeling plots
-code/plots/eda/
-code/plots/models/
+# Plot artifacts are tracked
+!code/plots/**
 
 # Whitelist important artifacts
-!code/plots/final/**
 !code/materials/**
 !/*.pdf
 
