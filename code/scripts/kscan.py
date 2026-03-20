@@ -5,6 +5,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.patches import Patch
 from hmmlearn.hmm import GaussianHMM
 from sklearn.metrics import adjusted_rand_score
 
@@ -26,6 +27,35 @@ def sim(T, k, P, rho, sig, seed=0):
         j = s[t]
         y[t] = rho[j] * y[t - 1] + rng.normal(scale=sig[j])
     return y, s
+
+
+def pointwise_match(true, pred, k_true, k_pred):
+    """Map each predicted label j to argmax_i count(true=i|pred=j); return mask (mapped_pred == true)."""
+    C = np.zeros((k_true, k_pred), dtype=int)
+    for t in range(len(true)):
+        C[true[t], pred[t]] += 1
+    pred_to_true = np.zeros(k_pred, dtype=int)
+    for j in range(k_pred):
+        col = C[:, j]
+        pred_to_true[j] = int(np.argmax(col)) if col.sum() > 0 else 0
+    mapped = pred_to_true[pred]
+    return mapped == true
+
+
+def overlay_correct(ax, ok):
+    """Green/red background from merged runs over indices [0, n)."""
+    n = len(ok)
+    edges = np.arange(n + 1, dtype=float)
+    t = 0
+    while t < n:
+        good = ok[t]
+        u = t + 1
+        while u < n and ok[u] == good:
+            u += 1
+        color = (0.2, 0.65, 0.35, 0.32) if good else (0.85, 0.25, 0.2, 0.32)
+        ax.axvspan(edges[t], edges[u], facecolor=color[:3], alpha=color[3], lw=0, zorder=0)
+        t = u
+    ax.set_xlim(0, n)
 
 
 def main(show: bool = True):
@@ -124,6 +154,46 @@ def main(show: bool = True):
     p2 = PLOT_DIR / "kscan_paths.pdf"
     fig2.savefig(p2, bbox_inches="tight")
     print("saved", p2)
+
+    # --- fig 3: y with green/red overlay for each k (single tall PDF) ---
+    n = len(z)
+    x = np.arange(n)
+    n_ks = len(ks)
+    fig3, axes3 = plt.subplots(
+        n_ks,
+        1,
+        figsize=(11, 1.35 * n_ks + 0.8),
+        sharex=True,
+        layout="constrained",
+    )
+    if n_ks == 1:
+        axes3 = [axes3]
+    leg = [
+        Patch(facecolor=(0.2, 0.65, 0.35), alpha=0.45, edgecolor="none", label="match true state (after label map)"),
+        Patch(facecolor=(0.85, 0.25, 0.2), alpha=0.45, edgecolor="none", label="mismatch"),
+    ]
+    for ax, k in zip(axes3, ks):
+        pred = models[k].predict(X)
+        ok = pointwise_match(z, pred, k_true, k)
+        overlay_correct(ax, ok)
+        ax.plot(x, y[1:], color="black", lw=0.45, zorder=2)
+        ax.set_ylabel("y", fontsize=8)
+        ax.set_title(
+            f"fitted k={k}   ARI={adjusted_rand_score(z, pred):.3f}   "
+            f"pointwise acc={ok.mean():.2f}",
+            fontsize=9,
+            loc="left",
+        )
+        ax.legend(handles=leg, loc="lower left", ncol=2, fontsize=6, framealpha=0.9)
+        ax.grid(True, alpha=0.15, zorder=1)
+    axes3[-1].set_xlabel("t (aligned with y_t, t≥1)")
+    fig3.suptitle(
+        "Simulated y: background = Viterbi vs truth (per-column majority label map)",
+        fontsize=11,
+    )
+    p3 = PLOT_DIR / "kscan_y_overlay.pdf"
+    fig3.savefig(p3, bbox_inches="tight")
+    print("saved", p3)
 
     if show:
         plt.show()
