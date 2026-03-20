@@ -55,7 +55,7 @@ ohlc = df["ask"].resample("1min").ohlc().dropna()
 ```
 stk-mat2011/
 ├── code/
-│   ├── scripts/     # Analysis scripts (data.py, viz.py, ar1.py, msar.py, msg.py)
+│   ├── scripts/     # Analysis scripts (data.py, viz.py, ark.py, kscan.py, arimax.py, …)
 │   ├── data/
 │   │   ├── raw/         # Raw CSV archives (gitignored)
 │   │   ├── processed/   # Optimized Parquet data (gitignored)

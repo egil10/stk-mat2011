@@ -30,7 +30,7 @@ def sim(T, k, P, rho, sig, seed=0):
 
 def main(show: bool = True):
     k_true = 5
-    T = 3200
+    T = 2600
     # Separated AR and noise across states so 2D Gaussian HMM has a fighting chance
     rho = np.array([-0.75, -0.15, 0.45, 0.78, 0.05])
     sig = np.array([0.32, 0.55, 0.42, 0.38, 0.85])
@@ -47,21 +47,15 @@ def main(show: bool = True):
     models = {}
 
     for k in ks:
-        best_bic, best_h = np.inf, None
-        for r in range(2):
-            h = GaussianHMM(
-                n_components=k,
-                covariance_type="diag",
-                n_iter=70,
-                tol=5e-2,
-                random_state=100 * k + r,
-                init_params="stmc",
-            )
-            h.fit(X)
-            b = h.bic(X)
-            if b < best_bic:
-                best_bic, best_h = b, h
-        h = best_h
+        h = GaussianHMM(
+            n_components=k,
+            covariance_type="diag",
+            n_iter=60,
+            tol=5e-2,
+            random_state=17 * k,
+            init_params="stmc",
+        )
+        h.fit(X)
         models[k] = h
         pred = h.predict(X)
         aris.append(adjusted_rand_score(z, pred))
@@ -72,7 +66,8 @@ def main(show: bool = True):
 
     print("k_true =", k_true)
     print("k (best BIC) =", k_bic, "  k (best ARI) =", k_ari)
-    print("(Gaussian HMM on (y_t,y_{t-1}) is a proxy, not MS-AR MLE — use BIC/ARI as heuristics.)")
+    print("BIC pick == k_true?", k_bic == k_true, "  ARI-max == k_true?", k_ari == k_true)
+    print("(Proxy: Gaussian HMM on (y_t,y_{t-1}), not MS-AR MLE. BIC/ARI are exploratory.)")
     for k, a, b in zip(ks, aris, bics):
         tag = " *" if k == k_true else ""
         print(f"  k={k:2d}  ARI={a:.3f}  BIC={b:10.1f}{tag}")
