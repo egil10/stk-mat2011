@@ -1,7 +1,8 @@
 import numpy as np
 from statsmodels.tsa.arima.model import ARIMA
 
-# y_t = p * y_{t-1} + b * x_t + e_t  (+ const via trend="c")
+# DGP: y_t = p*y_{t-1} + b*x_t + e_t,  e_t ~ N(0, s^2);  fit adds intercept (trend="c").
+# Fit: ARIMA(1,0,0) + exog x_t  ==  minimal ARIMAX here.
 np.random.seed(0)
 T = 2000
 x = np.random.randn(T)
