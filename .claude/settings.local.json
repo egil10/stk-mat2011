@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(find /c/Users/ofurn/Dokumenter/Github/stk-mat2011 -not -path */.git/* -not -path */.venv/* -type d)"
-    ]
-  }
-}
