@@ -1,6 +1,5 @@
 # Machine Learning for High-Frequency Time Series
 
-> **University of Oslo** · Bachelor's Level · 10 Credits · Spring 2026
 
 ## What This Is About
 
