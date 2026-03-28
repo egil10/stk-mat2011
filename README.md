@@ -79,10 +79,10 @@ Three data sources, covering EUR/USD, EUR/CHF, USD/ZAR and a broad set of forex 
 
 | Script | Source | Purpose |
 |--------|--------|---------|
-| `code/scripts/parquet_histdata.py` | HistData | Converts NinjaTrader + ASCII CSVs to Parquet |
-| `code/scripts/parquet_truefx.py` | TrueFX | Converts TrueFX tick CSVs to Parquet |
-| `code/scripts/parquet_dukascopy.py` | Dukascopy | Downloads tick data via API and saves as Parquet |
-| `code/scripts/create_samples.py` | — | Generates small CSV samples from Parquet files |
+| `code/scripts/p_hist.py` | HistData | Converts NinjaTrader + ASCII CSVs to Parquet |
+| `code/scripts/p_true.py` | TrueFX | Converts TrueFX tick CSVs to Parquet |
+| `code/scripts/p_duka.py` | Dukascopy | Downloads tick data via API and saves as Parquet |
+| `code/scripts/samp.py` | — | Generates small CSV samples from Parquet files |
 
 
 ## Resources
