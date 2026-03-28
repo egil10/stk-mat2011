@@ -2,15 +2,12 @@
 
 > **University of Oslo** · Bachelor's Level · 10 Credits · Spring 2026
 
-<hr style="border:none;border-top:1px solid #e1e4e8">
-
 ## What This Is About
 
 Tick-by-tick financial data is one of the most information-dense environments you can study. At millisecond resolution, markets reveal microstructure dynamics that are completely invisible in daily or hourly data — bid-ask bounce, order flow clustering, volatility regime shifts, and fleeting arbitrage signals. This project dives into that world using modern machine learning.
 
 The goal is to go beyond textbook time series analysis and wrestle with data that is messy, non-stationary, and enormous by design. If you can build models that work here, you can build models that work anywhere.
 
-<hr style="border:none;border-top:1px solid #e1e4e8">
 
 ## Why High-Frequency Data?
 
@@ -30,7 +27,6 @@ Working at this resolution is not just academically interesting — it is genuin
 - **Dimensionality** — traditional time series tools struggle with millions of correlated observations
 - **Overfitting** — rich data invites spurious patterns; disciplined regularization is essential
 
-<hr style="border:none;border-top:1px solid #e1e4e8">
 
 ## Methods Explored
 
@@ -46,7 +42,6 @@ Fitting AR models on rolling windows to capture time-varying autocorrelation. Vi
 **Pairs Trading**
 Cointegration analysis to find mean-reverting relationships between currency pairs, with ML-enhanced spread modeling for strategy development.
 
-<hr style="border:none;border-top:1px solid #e1e4e8">
 
 ## Quick Start
 
@@ -56,7 +51,6 @@ pip install -r requirements.txt
 
 Data lives in `code/data/processed/` as compressed Parquet files. Small CSV samples (1 000 rows each) are available in `code/data/samples/` for quick experimentation.
 
-<hr style="border:none;border-top:1px solid #e1e4e8">
 
 ## Data
 
@@ -90,7 +84,6 @@ Three data sources, covering EUR/USD, EUR/CHF, USD/ZAR and a broad set of forex 
 | `code/scripts/parquet_dukascopy.py` | Dukascopy | Downloads tick data via API and saves as Parquet |
 | `code/scripts/create_samples.py` | — | Generates small CSV samples from Parquet files |
 
-<hr style="border:none;border-top:1px solid #e1e4e8">
 
 ## Resources
 
@@ -100,6 +93,5 @@ Three data sources, covering EUR/USD, EUR/CHF, USD/ZAR and a broad set of forex 
 - [Dukascopy — Historical Market Data](https://www.dukascopy.com/swiss/english/marketwatch/historical/)
 - [dukascopy-python (PyPI)](https://pypi.org/project/dukascopy-python/)
 
-<hr style="border:none;border-top:1px solid #e1e4e8">
 
 <sub>University of Oslo · Department of Mathematics · Spring 2026</sub>
