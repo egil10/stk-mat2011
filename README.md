@@ -42,6 +42,70 @@ Fitting AR models on rolling windows to capture time-varying autocorrelation. Vi
 Cointegration analysis to find mean-reverting relationships between currency pairs, with ML-enhanced spread modeling for strategy development.
 
 
+## The Models
+
+Every model in this project is a building block in the same hierarchy — from simple linear structure to full conditional heteroskedasticity. Understanding each step makes the next one obvious.
+
+<br>
+
+**AR(p)** — Autoregressive
+
+The price at time $t$ is a linear combination of its own past $p$ values. The simplest possible structure for temporal dependence.
+
+$$y_t = c + \sum_{i=1}^{p} \phi_i\, y_{t-i} + \varepsilon_t$$
+
+<br>
+
+**MA(q)** — Moving Average
+
+Instead of lagged prices, the model depends on lagged shocks. Short-lived, mean-reverting dynamics.
+
+$$y_t = \mu + \varepsilon_t + \sum_{j=1}^{q} \theta_j\, \varepsilon_{t-j}$$
+
+<br>
+
+**ARMA(p, q)** — Autoregressive Moving Average
+
+Combines both: persistent autocorrelation from AR, transient shock responses from MA.
+
+$$y_t = c + \sum_{i=1}^{p} \phi_i\, y_{t-i} + \varepsilon_t + \sum_{j=1}^{q} \theta_j\, \varepsilon_{t-j}$$
+
+<br>
+
+**ARIMA(p, d, q)** — Integrated
+
+Non-stationary series are differenced $d$ times before fitting ARMA. Handles trending prices without detrending by hand.
+
+$$\Delta^d y_t = c + \sum_{i=1}^{p} \phi_i\, \Delta^d y_{t-i} + \varepsilon_t + \sum_{j=1}^{q} \theta_j\, \varepsilon_{t-j}$$
+
+<br>
+
+**ARIMAX(p, d, q)** — With Exogenous Variables
+
+ARIMA extended with external regressors $x_{k,t}$ — order flow, spread, or other microstructure signals enter as covariates.
+
+$$\Delta^d y_t = c + \sum_{i=1}^{p} \phi_i\, \Delta^d y_{t-i} + \sum_{k=1}^{K} \beta_k\, x_{k,t} + \varepsilon_t + \sum_{j=1}^{q} \theta_j\, \varepsilon_{t-j}$$
+
+<br>
+
+**ARCH(q)** — Autoregressive Conditional Heteroskedasticity
+
+Volatility is not constant — it clusters. ARCH models the conditional variance as a function of past squared residuals.
+
+$$\sigma_t^2 = \omega + \sum_{j=1}^{q} \alpha_j\, \varepsilon_{t-j}^2$$
+
+<br>
+
+**GARCH(p, q)** — Generalized ARCH
+
+Adds lagged variance terms to ARCH, capturing the long memory of volatility with far fewer parameters. The workhorse of financial volatility modeling.
+
+$$\sigma_t^2 = \omega + \sum_{i=1}^{p} \beta_i\, \sigma_{t-i}^2 + \sum_{j=1}^{q} \alpha_j\, \varepsilon_{t-j}^2$$
+
+In all models, $\varepsilon_t \sim \mathcal{N}(0,\, \sigma_t^2)$.
+
+<br>
+
 ## Quick Start
 
 ```bash
