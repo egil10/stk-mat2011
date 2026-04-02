@@ -1,16 +1,14 @@
 # Archive folder (reference code from previous projects)
 .archive/
 
-# Data files - ignore everything in raw/processed except README and main clean dataset
+# Data files - ignore everything in raw/processed except README
 code/data/raw/*
 !code/data/raw/README.md
 code/data/processed/*
 !code/data/processed/README.md
-!code/data/processed/eurusd_clean_returns_jan2026.parquet
 code/data/*.csv
 !code/data/samples/
 *.parquet
-!code/data/processed/*.parquet
 *.zip
 *.7z
 *.gz
