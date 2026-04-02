@@ -13,7 +13,7 @@ def mount_drive():
         print("Not running in Colab. Skipping Drive mount.")
         return False
 
-def sync_data(src_path, drive_subdir="stk-mat2011/data", to_drive=True):
+def sync_data(src_path, drive_subdir="GITHUB-COLAB/stk-mat2011/data", to_drive=True):
     """
     Syncs a file or folder between Colab and Google Drive.
     
