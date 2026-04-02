@@ -1,3 +1,6 @@
+# Archive folder (reference code from previous projects)
+.archive/
+
 # Data files - ignore everything in raw/processed except README
 code/data/raw/*
 !code/data/raw/README.md
