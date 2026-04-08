@@ -36,15 +36,19 @@ OUT_DIR = PROJECT_ROOT / "code" / "data" / "processed"
 # Default configuration -- same pairs & months as TrueFX data
 # ---------------------------------------------------------------------------
 DEFAULT_PAIRS = [
-    "EUR/CHF",
-    "EUR/USD",
-    "USD/ZAR",
+    # "EUR/CHF",
+    # "EUR/USD",
+    # "USD/ZAR",
+    "AUD/USD",  # Added
+    "NZD/USD",  # Added
+    "EUR/NOK",  # Added
+    "EUR/SEK",  # Added
 ]
 
 DEFAULT_MONTHS = [
-    "202511",  # Nov 2025
-    "202512",  # Dec 2025
     "202601",  # Jan 2026
+    "202602",  # Feb 2026
+    "202603",  # Mar 2026
 ]
 
 
