@@ -8,6 +8,7 @@ matplotlib>=3.8.0
 numpy>=1.26.0
 numpyro>=0.20.1
 pandas>=2.1.0
+pandas_datareader>=0.10.0
 pyarrow>=15.0.0
 scipy>=1.11.0
 torch>=2.2.0
