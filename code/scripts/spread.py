@@ -11,6 +11,12 @@ class SPREAD:
         self.vol_threshold = vol_threshold
         self.data = None
 
+    def _load_parquet(self, file_paths): 
+        if isinstance(file_paths, list):
+            return pd.concat([pd.read_parquet(fp) for fp in file_paths])
+        else:
+            return pd.read_parquet(file_paths) 
+
     def _aggregate_volume(self, ask_file, bid_file):
         """
         Internal method which converts raw bid/ask parquets
@@ -18,8 +24,8 @@ class SPREAD:
         """
 
         # load and rename
-        df_ask = pd.read_parquet(ask_file).sort_values('datetime').rename(columns={'price': 'ask_price', 'volume': 'ask_volume'})
-        df_bid = pd.read_parquet(bid_file).sort_values('datetime').rename(columns={'price': 'bid_price', 'volume': 'bid_volume'})
+        df_ask = self._load_parquet(ask_file).sort_values('datetime').rename(columns={'price': 'ask_price', 'volume': 'ask_volume'})
+        df_bid = self._load_parquet(bid_file).sort_values('datetime').rename(columns={'price': 'bid_price', 'volume': 'bid_volume'})
         
         # clipping active trading hours
         df_ask = df_ask[(df_ask['datetime'].dt.dayofweek < 5) & (df_ask['datetime'].dt.hour.between(10, 14))]
