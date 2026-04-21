@@ -43,7 +43,7 @@ class SPREAD:
 
         # compress into bars
         bars = df_ticks.groupby('bar_id').agg(
-            timestamp=('datetime', 'last')m
+            timestamp=('datetime', 'last'),
             close=('mid_price', 'last')
         ).set_index('timestamp')
 
@@ -69,8 +69,8 @@ class SPREAD:
             direction='backward'
         ).dropna()
 
-        df_pairs['Log_A'] = np.log(df_pars['Asset_A'])
-        df_pairs['Log_B'] = np.log(df_pars['Asset_B'])
+        df_pairs['Log_A'] = np.log(df_pairs['Asset_A'])
+        df_pairs['Log_B'] = np.log(df_pairs['Asset_B'])
 
         self.data = df_pairs
         print(f"built {len(self.data)} rows")
@@ -78,7 +78,5 @@ class SPREAD:
         return self.data
 
 
-        
 
-        
-        
+
