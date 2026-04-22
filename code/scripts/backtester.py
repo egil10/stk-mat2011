@@ -17,9 +17,10 @@ class BACKTESTER:
         z_scores = self.data['Z_Score'].values
         danger_probs = self.data['Danger_Regime_Prob'].values
         spread_returns = self.data['Spread_Return'].values
-
+        garch_vol = self.data['Forecasted_Vol'].values
+        vol_scalar = garch_vol / np.nanmedian(garch_vol)
+        ar_phi = self.data['AR_Phi'].values
         positions = np.zeros(len(self.data))
-        # 1 for long, -1 for short, 0 for flat
         current_pos = 0  
 
         for i in range(len(self.data)):
