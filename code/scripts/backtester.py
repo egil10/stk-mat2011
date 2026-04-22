@@ -68,7 +68,7 @@ class BACKTESTER:
         self.data['Cum_Return'] = self.data['Strategy_Return'].cumsum()
 
         self._print_summary()
-        
+
         return self.data
 
     def _print_summary(self):
