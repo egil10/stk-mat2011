@@ -63,7 +63,7 @@ class ENGINE:
         
         return self.data 
 
-    def predict_oss(self, test_df, train_tail_df, z_window=1000, scaling=10000:
+    def predict_oss(self, test_df, train_tail_df, z_window=1000, scaling=10000):
         """
         Projects frozen train parameters onto strictly unseen test data
         """
