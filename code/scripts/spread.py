@@ -75,8 +75,16 @@ class SPREAD:
             direction='backward'
         ).dropna()
 
+        # calculate the log prices
         df_pairs['Log_A'] = np.log(df_pairs['Asset_A'])
         df_pairs['Log_B'] = np.log(df_pairs['Asset_B'])
+
+        # calculate log returns
+        af_pairs['Return_A'] = df_pairs['Log_A'].diff()
+        df_pairs['Return_B'] = df_pairs['Log_B'].diff()
+
+        # drop the first row with NaN returns
+        df_pairs = df_pairs.dropna()
 
         self.data = df_pairs
         print(f"built {len(self.data)} rows")
