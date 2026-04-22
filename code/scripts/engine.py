@@ -1,7 +1,7 @@
-
-import numpy as np, pandas as pd, matplotlib.pyplot as plt
+import numpy as np, pandas as pd
 import statsmodels.api as sm
 from scipy.stats import norm
+from arch import arch_model # Need this for GARCH
 
 class ENGINE:
     
