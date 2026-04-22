@@ -3,71 +3,62 @@ import numpy as np
 import pandas as pd
 
 class BACKTESTER:
-    """
-    Simulates a mean-reversion pairs trading strategy using Z-Scores,
-    regulated by a Markov-Switching volatility kill-switch.
-    """
-
     def __init__(self, df):
         self.data = df.copy()
 
-    def run(self, base_z=2.0, exit_z=0.0, danger_threshold=0.6, fee_bps=0.5, ar_limit=0.9):
-
-        # Extract columns to numpy arrays for lightning fast iteration
+    def run(self, base_z=2.0, exit_z=0.0, danger_threshold=0.6, fee_bps=0.5, ar_limit=0.995):
         z_scores = self.data['Z_Score'].values
         danger_probs = self.data['Danger_Regime_Prob'].values
-        spread_returns = self.data['Spread_Return'].values
-        
-        garch_vol = self.data['GARCH_Vol'].values # NOTE: Ensure this matches the ENGINE column name
-        vol_scalar = garch_vol / np.nanmedian(garch_vol)
+        garch_vol = self.data['GARCH_Vol'].values
         ar_phi = self.data['AR_Phi'].values
         
-        positions = np.zeros(len(self.data))
-        current_pos = 0  
+        vol_scalar = garch_vol / np.nanmedian(garch_vol)
+        
+        # Track both strategies
+        pos_adaptive = np.zeros(len(self.data))
+        pos_baseline = np.zeros(len(self.data))
+        curr_adapt = 0  
+        curr_base = 0
 
         for i in range(len(self.data)):
-            
-            # skip the warm up period 
             if np.isnan(z_scores[i]) or np.isnan(vol_scalar[i]):
-                positions[i] = 0
                 continue
 
-            in_danger = danger_probs[i] > danger_threshold
-            trending = ar_phi[i] > ar_limit # AR filter: don't trade if spread is trending
-
-            # the HMM & AR kill switch
-            if in_danger or trending:
-                current_pos = 0  # exit to cash
+            # --- 1. STATIC BASELINE LOGIC ---
+            if curr_base == 0:
+                if z_scores[i] < -base_z: curr_base = 1
+                elif z_scores[i] > base_z: curr_base = -1
+            elif curr_base == 1 and z_scores[i] >= exit_z: curr_base = 0
+            elif curr_base == -1 and z_scores[i] <= -exit_z: curr_base = 0
             
-            # dynamic trading logic
+            pos_baseline[i] = curr_base
+
+            # --- 2. ADAPTIVE LOGIC ---
+            in_danger = danger_probs[i] > danger_threshold
+            trending = ar_phi[i] > ar_limit 
+
+            if in_danger or trending:
+                curr_adapt = 0  
             else:
-                # Scale the entry threshold based on GARCH volatility
                 dynamic_entry = base_z * vol_scalar[i]
-                
-                if current_pos == 0:
-                    if z_scores[i] < -dynamic_entry:
-                        current_pos = 1
-                    elif z_scores[i] > dynamic_entry:
-                        current_pos = -1
-                
-                elif current_pos == 1 and z_scores[i] >= exit_z:
-                    current_pos = 0
-                
-                elif current_pos == -1 and z_scores[i] <= -exit_z:
-                    current_pos = 0
+                if curr_adapt == 0:
+                    if z_scores[i] < -dynamic_entry: curr_adapt = 1
+                    elif z_scores[i] > dynamic_entry: curr_adapt = -1
+                elif curr_adapt == 1 and z_scores[i] >= exit_z: curr_adapt = 0
+                elif curr_adapt == -1 and z_scores[i] <= -exit_z: curr_adapt = 0
+            
+            pos_adaptive[i] = curr_adapt
 
-            positions[i] = current_pos
+        # Save Target Positions
+        self.data['Target_Adaptive'] = pd.Series(pos_adaptive, index=self.data.index).shift(1).fillna(0)
+        self.data['Target_Baseline'] = pd.Series(pos_baseline, index=self.data.index).shift(1).fillna(0)
 
-        self.data['Position'] = positions
-        self.data['Target_Position'] = self.data['Position'].shift(1).fillna(0)
-
-        trades = self.data['Target_Position'].diff().abs().fillna(0)
-        costs = trades * (fee_bps / 10000)
-
-        self.data['Strategy_Return'] = (self.data['Target_Position'] * self.data['Spread_Return']) - costs
-        self.data['Cum_Return'] = self.data['Strategy_Return'].cumsum()
-
-        self._print_summary()
+        # Calculate Transaction Costs & Returns
+        for strat in ['Adaptive', 'Baseline']:
+            trades = self.data[f'Target_{strat}'].diff().abs().fillna(0)
+            costs = trades * (fee_bps / 10000)
+            self.data[f'Return_{strat}'] = (self.data[f'Target_{strat}'] * self.data['Spread_Return']) - costs
+            self.data[f'CumReturn_{strat}'] = self.data[f'Return_{strat}'].cumsum()
 
         return self.data
 
