@@ -40,7 +40,7 @@ class TEARSHEET:
 
     def plot_performance(self):
 
-        fig, axes = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
+        fig, axes = plt.subplots(2, 1, figsize=(12, 6), sharex=True)
 
         # equity curve
         axes[0].plot(self.df.index, self.df['Strategy_Return'].cumsum() * 10000, color='blue')
