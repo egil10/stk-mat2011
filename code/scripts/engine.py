@@ -100,7 +100,6 @@ class ENGINE:
         """
         Projects frozen train parameters onto strictly unseen test data
         """
-
         test_data = test_df.copy()
 
         # calculate OOS spread using frozen beta and alpha
@@ -127,6 +126,10 @@ class ENGINE:
 
         # normalize to get a 0 to 1 probability
         test_data['Danger_Regime_Prob'] = prob_danger / (prob_safe + prob_danger)
+
+        # --- THE MISSING LINES: INJECT GARCH AND AR INTO THE DATASET ---
+        test_data['GARCH_Vol'] = self.forecasted_vol
+        test_data['AR_Phi'] = self.ar_phi
 
         return test_data
 
