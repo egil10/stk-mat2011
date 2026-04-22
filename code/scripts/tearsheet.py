@@ -8,13 +8,22 @@ class TEARSHEET:
         self.returns = df_results['Strategy_Return']
 
     def calculate_financials(self):
-        ann_factor = len(self.df) / (len(self.df.index.date.unique()) / 252)
+        # Convert index to a pandas Series to ensure .dt and .unique() work
+        idx_series = pd.Series(self.df.index)
+        
+        # Calculate how many unique days are in the sample
+        unique_days_count = len(idx_series.dt.date.unique())
+        
+        # Annualization factor: (Total Bars / Years in Sample)
+        ann_factor = len(self.df) / (unique_days_count / 252)
 
         total_ret = self.returns.sum() * 10000
         vol = self.returns.std() * np.sqrt(ann_factor) * 10000
+        
+        # Sharpe Ratio
         sharpe = (self.returns.mean() * ann_factor) / (self.returns.std() * np.sqrt(ann_factor))
 
-        # drawdown
+        # Drawdown
         cum_ret = self.returns.cumsum()
         running_max = cum_ret.cummax()
         drawdown = cum_ret - running_max
