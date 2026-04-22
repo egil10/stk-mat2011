@@ -11,37 +11,43 @@ class BACKTESTER:
     def __init__(self, df):
         self.data = df.copy()
 
-    def run(self, entry_z=2.0, exit_z=0.0, danger_threshold=0.5, fee_bps=0.5):
+    def run(self, base_z=2.0, exit_z=0.0, danger_threshold=0.6, fee_bps=0.5, ar_limit=0.9):
 
-        # extract columns to numpy arrays for lightning fast iteration
+        # Extract columns to numpy arrays for lightning fast iteration
         z_scores = self.data['Z_Score'].values
         danger_probs = self.data['Danger_Regime_Prob'].values
         spread_returns = self.data['Spread_Return'].values
-        garch_vol = self.data['Forecasted_Vol'].values
+        
+        garch_vol = self.data['GARCH_Vol'].values # NOTE: Ensure this matches the ENGINE column name
         vol_scalar = garch_vol / np.nanmedian(garch_vol)
         ar_phi = self.data['AR_Phi'].values
+        
         positions = np.zeros(len(self.data))
         current_pos = 0  
 
         for i in range(len(self.data)):
             
             # skip the warm up period 
-            if np.isnan(z_scores[i]):
+            if np.isnan(z_scores[i]) or np.isnan(vol_scalar[i]):
                 positions[i] = 0
                 continue
 
             in_danger = danger_probs[i] > danger_threshold
+            trending = ar_phi[i] > ar_limit # AR filter: don't trade if spread is trending
 
-            # the HMM kill switch
-            if in_danger:
+            # the HMM & AR kill switch
+            if in_danger or trending:
                 current_pos = 0  # exit to cash
             
-            # normal trading logic
+            # dynamic trading logic
             else:
+                # Scale the entry threshold based on GARCH volatility
+                dynamic_entry = base_z * vol_scalar[i]
+                
                 if current_pos == 0:
-                    if z_scores[i] < -entry_z:
+                    if z_scores[i] < -dynamic_entry:
                         current_pos = 1
-                    elif z_scores[i] > entry_z:
+                    elif z_scores[i] > dynamic_entry:
                         current_pos = -1
                 
                 elif current_pos == 1 and z_scores[i] >= exit_z:
@@ -53,20 +59,16 @@ class BACKTESTER:
             positions[i] = current_pos
 
         self.data['Position'] = positions
-
-        # shift positions by 1
         self.data['Target_Position'] = self.data['Position'].shift(1).fillna(0)
 
-        # calculate transaction costs
         trades = self.data['Target_Position'].diff().abs().fillna(0)
         costs = trades * (fee_bps / 10000)
 
-        # calculate final strategy returns
         self.data['Strategy_Return'] = (self.data['Target_Position'] * self.data['Spread_Return']) - costs
         self.data['Cum_Return'] = self.data['Strategy_Return'].cumsum()
 
         self._print_summary()
-
+        
         return self.data
 
     def _print_summary(self):
