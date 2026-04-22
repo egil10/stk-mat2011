@@ -30,6 +30,8 @@ class ENGINE:
         # calculate strategy returns 
         self.data['Spread_Return'] = self.data['Return_A'] - self.beta * self.data['Return_B']
 
+        print(f"Cointegration Fitted | Beta: {self.beta:.4f} | Alpha: {self.alpha:.4f}")
+
         return self.data.dropna()
 
     def fit_markov_regimes(self, k_regimes=2, scaling=10000, jitter_size=1e-5, random_seed=42):
@@ -53,4 +55,6 @@ class ENGINE:
 
         self.data['Danger_Regime_Prob'] = model.smoothed_marginal_probabilities[danger_idx]
 
+        print(f"Markov Fitted | Danger Variance: {np.max(variances):.2f} | Safe Variance: {np.min(variances):.2f}")
+        
         return self.data 
