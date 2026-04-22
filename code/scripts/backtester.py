@@ -107,5 +107,10 @@ class BACKTESTER:
                 - flat_costs - slip_costs
             )
             self.data[f'CumReturn_{strat}'] = self.data[f'Return_{strat}'].cumsum()
- 
+
+        # Cash benchmark: flat always, zero PnL, zero cost
+        self.data['Return_Cash'] = 0.0
+        self.data['CumReturn_Cash'] = 0.0
+
         return self.data
+

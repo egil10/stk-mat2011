@@ -35,31 +35,33 @@ class TEARSHEET:
         idx_series = pd.Series(self.df.index)
         unique_days_count = max(len(idx_series.dt.date.unique()), 1)
         ann_factor = len(self.df) / (unique_days_count / 252)
+
         stats_adapt = self._calc_stats(self.df['Return_Adaptive'], ann_factor)
-        stats_base = self._calc_stats(self.df['Return_Baseline'], ann_factor)
- 
+        stats_base  = self._calc_stats(self.df['Return_Baseline'], ann_factor)
+        stats_cash  = self._calc_stats(self.df['Return_Cash'], ann_factor)
+
         metrics = ["Total Return (Bps)", "Annual Vol (Bps)", "Sharpe Ratio",
-                   "Sortino Ratio", "Max Drawdown (Bps)", "Calmar Ratio",
-                   "Win Rate", "Profit Factor"]
-        print(f"\n{'='*55}")
-        print(f"{'INSTITUTIONAL PERFORMANCE REPORT':^55}")
-        print(f"{'='*55}")
-        print(f"{'Metric':<25} | {'Adaptive':<12} | {'Static Base':<12}")
-        print(f"{'-'*55}")
+                "Sortino Ratio", "Max Drawdown (Bps)", "Calmar Ratio",
+                "Win Rate", "Profit Factor"]
+        print(f"\n{'='*70}")
+        print(f"{'INSTITUTIONAL PERFORMANCE REPORT':^70}")
+        print(f"{'='*70}")
+        print(f"{'Metric':<22} | {'Adaptive':<12} | {'Static Base':<12} | {'Cash':<12}")
+        print(f"{'-'*70}")
         for i, metric in enumerate(metrics):
-            if i == 6:  # win rate
-                va, vb = f"{stats_adapt[i]:.2%}", f"{stats_base[i]:.2%}"
+            if i == 6:
+                va = f"{stats_adapt[i]:.2%}"; vb = f"{stats_base[i]:.2%}"; vc = f"{stats_cash[i]:.2%}"
             else:
-                va, vb = f"{stats_adapt[i]:.2f}", f"{stats_base[i]:.2f}"
-            print(f"{metric:<25} | {va:<12} | {vb:<12}")
-        print(f"{'='*55}\n")
- 
+                va = f"{stats_adapt[i]:.2f}"; vb = f"{stats_base[i]:.2f}"; vc = f"{stats_cash[i]:.2f}"
+            print(f"{metric:<22} | {va:<12} | {vb:<12} | {vc:<12}")
+        print(f"{'='*70}\n")
+
     def plot_comparative_equity(self):
         fig, axes = plt.subplots(2, 1, figsize=(14, 8), sharex=True)
         axes[0].plot(self.df.index, self.df['CumReturn_Adaptive'] * 10000,
                      color='blue', linewidth=1.5, label='Adaptive (HMM/GARCH)')
-        axes[0].plot(self.df.index, self.df['CumReturn_Baseline'] * 10000,
-                     color='gray', linewidth=1.0, alpha=0.7, label='Static Baseline')
+        axes[0].plot(self.df.index, self.df['CumReturn_Baseline'] * 10000, color='gray', linewidth=1.0, alpha=0.7, label='Static Baseline')
+        axes[0].plot(self.df.index, self.df['CumReturn_Cash'] * 10000, color='black', linewidth=0.8, linestyle=':', label='Cash (zero)')
         axes[0].set_title("Strategy Race: Adaptive vs Baseline")
         axes[0].legend(); axes[0].grid(True, alpha=0.3)
  
