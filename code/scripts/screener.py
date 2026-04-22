@@ -152,7 +152,7 @@ class SCREENER:
 
     def _plot_rolling(self):
         import matplotlib.pyplot as plt
-        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(13, 8), sharex=True)
+        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 6), sharex=True)
 
         ax1.plot(self.rolling_df.index, self.rolling_df['p_value'],
                  color='tab:blue', linewidth=1.2)
