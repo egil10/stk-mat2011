@@ -2,6 +2,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from backtester import BACKTESTER
 
 class TEARSHEET:
     def __init__(self, df_results, df_params=None):
