@@ -46,7 +46,7 @@ class BACKTESTER:
                 elif current_pos == 1 and z_scores[i] >= exit_z:
                     current_pos = 0
                 
-                elif current_pos == -1 and z_scores[i] <= exit_z:
+                elif current_pos == -1 and z_scores[i] <= -exit_z:
                     current_pos = 0
 
             positions[i] = current_pos
