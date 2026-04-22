@@ -1,14 +1,18 @@
 
+import numpy as np, pandas as pd, matplotlib.pyplot as plt
 import statsmodels.api as sm
-import statsmodels.tsa.stattools as ts
-import numpy as np
+from scipy.stats import norm
 
 class ENGINE:
     
     def __init__(self, df):
+
         self.data = df.copy()
         self.beta = None
         self.alpha = None
+
+        self.danger_variance = None
+        self.safe_variance = None
 
     def fit_cointegration(self, y_col='Log_A', x_col='Log_B', z_window=1000):
 
@@ -58,3 +62,38 @@ class ENGINE:
         print(f"Markov Fitted | Danger Variance: {np.max(variances):.2f} | Safe Variance: {np.min(variances):.2f}")
         
         return self.data 
+
+    def predict_oss(self, test_df, train_tail_df, z_window=1000, scaling=10000:
+        """
+        Projects frozen train parameters onto strictly unseen test data
+        """
+
+        test_data = test_df.copy()
+
+        # calculate OOS spread using frozen beta and alpha
+        Y_test = test_data['Log_A']
+        X_test = test_data['Log_B']
+        test_spread = Y_test - (self.beta * X_test + self.alpha)
+        test_data['Spread_Level'] = test_spread
+
+        # OOS z-score 
+        past_spread = train_tail_df['Spread_Level'].iloc[-z_window:]
+        combined_spread = pd.concat([past_spread, test_spread])
+
+        roll_mean = combined_spread.rolling(window=z_window).mean()
+        roll_std = combined_spread.rolling(window=z_window).std()
+
+        test_data['Z_Score'] = ((combined_spread - roll_mean) / roll_std).loc[test_data.index]
+        test_data['Spread_Return'] = test_data['Return_A'] - self.beta * test_data['Return_B']
+
+        # oos hmm classification (pdf evaluation)
+        scaled_returns = test_data['Spread_Return'] * scaling
+
+        prob_safe = norm.pdf(scaled_returns, loc=0, scale=np.sqrt(self.safe_variance))
+        prob_danger = norm.pdf(scaled_returns, loc=0, scale=np.sqrt(self.danger_variance))
+
+        # normalize to get a 0 to 1 probability
+        test_data['Danger_Regime_Prob'] = prob_danger / (prob_safe + prob_danger)
+
+        return test_data
+
