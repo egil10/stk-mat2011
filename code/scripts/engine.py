@@ -56,6 +56,10 @@ class ENGINE:
 
         variances = [model.params[f'sigma2[{i}]'] for i in range(k_regimes)]
         danger_idx = np.argmax(variances)
+        safe_idx = np.argmin(variances)
+
+        self.danger_variance = variances[danger_idx]
+        self.safe_variance = variances[safe_idx]
 
         self.data['Danger_Regime_Prob'] = model.smoothed_marginal_probabilities[danger_idx]
 
