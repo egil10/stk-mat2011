@@ -7,16 +7,29 @@ class SPREAD:
     A minimal class to ingest high-frequency tick data and
     output synchronized volume or tick bars for pairs trading.
     """
-    def __init__(self, agg_type='volume', threshold=1000):
+    def __init__(self, agg_type='volume', threshold=1000, active_days=None, active_hours=(10, 14)):
+        """
+        Parameters:
+        - agg_type: 'volume' or 'tick' to determine the type of aggregation
+        - threshold: the threshold for aggregation
+        - active_days: a list of active days (0-4 for Monday to Friday)
+        - active_hours: a tuple of active hours (start, end)
+        """
+
         # validate the aggregation type
         if agg_type not in ['volume', 'tick']:
             raise ValueError("agg_type must be 'volume' or 'tick'")
 
         self.agg_type = agg_type
         self.threshold = threshold
+        self.active_days = active_days if active_days is not None else [0, 1, 2, 3, 4]
+        self.active_hours = active_hours
         self.data = None
 
     def _load_parquet(self, file_paths): 
+        """
+        Loading the parquet files. If a list is provided, it concatenates them into a single DataFrame.
+        """
         if isinstance(file_paths, list):
             return pd.concat([pd.read_parquet(fp) for fp in file_paths])
         else:
@@ -49,7 +62,6 @@ class SPREAD:
         df_ticks['total_volume'] = df_ticks['bid_volume'] + df_ticks['ask_volume']
 
         # dynamic aggregation logic
-
         if self.agg_type == 'volume':
             df_ticks['cum_volume'] = df_ticks['total_volume'].cumsum()
             df_ticks['bar_id'] = (df_ticks['cum_volume'] // self.threshold).astype(int)
@@ -70,12 +82,16 @@ class SPREAD:
         synchronized pairs dataset.
         Order = [ask_a, bid_a, ask_b, bid_b]
         """
+
+        # setting it to exactly length 4
         if len(file_paths) != 4:
             raise ValueError("Provide exactly 4 file paths: [ask_a, bid_a, ask_b, bid_b]")
 
-        bars_a = self._aggregate_volume(file_paths[0], file_paths[1])
-        bars_b = self._aggregate_volume(file_paths[2], file_paths[3])
+        # build bars for both assets
+        bars_a = self._aggregate_bars(file_paths[0], file_paths[1])
+        bars_b = self._aggregate_bars(file_paths[2], file_paths[3])
 
+        # asynchronous merge to align bars without look-ahead bias
         df_pairs = pd.merge_asof(
             bars_a.rename(columns={'close': 'Asset_A'}),
             bars_b.rename(columns={'close': 'Asset_B'}),
@@ -95,11 +111,11 @@ class SPREAD:
         # drop the first row with NaN returns
         df_pairs = df_pairs.dropna()
 
+        # store the final dataset
         self.data = df_pairs
+
+        # print the number of rows built
         print(f"built {len(self.data)} rows")
 
+        # return the final dataset
         return self.data
-
-
-
-
