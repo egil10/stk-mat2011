@@ -300,3 +300,69 @@ class ENGINE:
         test_data['GARCH_Vol'] = garch_vol_out
         test_data['AR_Phi'] = ar_phi_out
         return test_data
+
+
+@classmethod
+def walk_forward(cls, df, train_days=30, z_window=250, coint_window=None,
+                 k_regimes=2, scaling=10000, print_freq=10, verbose=True):
+    """
+    Runs the full walk-forward loop: one engine per test day, fit on the
+    preceding `train_days` days, project OOS onto the test day.
+
+    Returns
+    -------
+    live_trading_data : pd.DataFrame   stitched OOS predictions
+    df_params         : pd.DataFrame   per-fold scalar parameters
+    """
+    df = df.copy()
+    df['Date'] = df.index.date
+    unique_days = df['Date'].unique()
+
+    # Auto-size coint_window if not given
+    if coint_window is None:
+        sample = df[df['Date'].isin(unique_days[:train_days])]
+        coint_window = min(2000, int(0.4 * len(sample)))
+    if verbose:
+        print(f"train_days={train_days} | coint_window={coint_window} | z_window={z_window}")
+
+    oos_results, param_tracker = [], []
+
+    for i in range(train_days, len(unique_days)):
+        train_df = df[df['Date'].isin(unique_days[i - train_days : i])].copy()
+        test_df  = df[df['Date'] == unique_days[i]].copy()
+        if len(train_df) <= coint_window + z_window + 10 or len(test_df) < 5:
+            continue
+
+        try:
+            eng = cls(train_df)
+            eng.fit_cointegration(coint_window=coint_window, z_window=z_window)
+            eng.fit_ar_reversion(lags=1)
+            eng.fit_garch_vol(scaling=scaling)
+            eng.fit_markov_regimes(k_regimes=k_regimes, scaling=scaling)
+            oos = eng.predict_oos(test_df, eng.data,
+                                  z_window=z_window, coint_window=coint_window)
+        except Exception as e:
+            if verbose:
+                print(f"[{unique_days[i]}] skipped: {type(e).__name__}: {e}")
+            continue
+
+        oos_results.append(oos)
+        param_tracker.append({
+            'Date': unique_days[i],
+            'Beta': eng.beta, 'Alpha': eng.alpha,
+            'Safe_Variance': eng.safe_variance,
+            'Danger_Variance': eng.danger_variance,
+            'GARCH_Vol': eng.forecasted_vol,
+            'AR_Phi': eng.ar_phi,
+        })
+
+        if verbose and i % print_freq == 0:
+            print(f"[{unique_days[i]}] Beta: {eng.beta:.4f} | "
+                  f"GARCH: {eng.forecasted_vol:.2f} | AR: {eng.ar_phi:.4f}")
+
+    assert oos_results, "No folds ran — lower coint_window or train_days."
+    live_trading_data = pd.concat(oos_results)
+    df_params = pd.DataFrame(param_tracker).set_index('Date')
+    if verbose:
+        print(f"\nOOS rows: {len(live_trading_data)} | Folds: {len(oos_results)}")
+    return live_trading_data, df_params
