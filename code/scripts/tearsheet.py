@@ -98,6 +98,14 @@ class TEARSHEET:
         print(f"{'QUANTITATIVE STRATEGY TEARSHEET':^75}")
         print(f"{'='*75}")
         
+        # --- FIX: Print the Column Headers ---
+        header_str = f"{'Metric':<30} |"
+        for strat in self.strats:
+            header_str += f" {strat:<12} |"
+        print(header_str)
+        print("-" * len(header_str))
+        
+        # Print the rows
         for index, row in report_df.iterrows():
             if "---" in index:
                 print(f"\n{index}")

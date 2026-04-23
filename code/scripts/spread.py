@@ -110,7 +110,7 @@ class SPREAD:
     def plot_diagnostics(self):
         """
         Plots 5 panels of (12, 3) each. 
-        Shows raw time series, spread, returns, and distribution histograms.
+        Shows raw time series, spread, returns, and distribution histograms (Log-Scaled for Fat Tails).
         """
         if self.data is None or self.data.empty:
             raise ValueError("Data has not been built yet. Please run .build() first.")
@@ -139,46 +139,46 @@ class SPREAD:
         l2, = ax1_twin.plot(df.index, df['Asset_B'], color='tab:orange', alpha=0.8, label='Asset B')
         ax1_twin.set_ylabel('Asset B Price', color='tab:orange')
         
-        ax1.set_title('Asset Prices (Time Series)')
-        # Combine legends from twin axes
+        ax1.set_title('Asset Prices (Time Series)', fontweight='bold')
         ax1.legend(handles=[l1, l2], loc='upper left')
 
         # --- Panel 2: Spread Time Series ---
         ax2 = fig.add_subplot(gs[1, :])
         ax2.plot(spread.index, spread, color='tab:purple', alpha=0.9)
         ax2.axhline(spread.mean(), color='black', linestyle='--', alpha=0.5)
-        ax2.set_title(f'Log Spread (Log A - {beta:.3f} * Log B)')
+        ax2.set_title(f'Log Spread (Log A - {beta:.3f} * Log B)', fontweight='bold')
         ax2.set_ylabel('Spread Level')
 
         # --- Panel 3: Returns Time Series ---
         ax3 = fig.add_subplot(gs[2, :])
         ax3.plot(df.index, df['Return_A'], color='tab:blue', alpha=0.6, label='Return A')
         ax3.plot(df.index, df['Return_B'], color='tab:orange', alpha=0.6, label='Return B')
-        ax3.set_title('Asset Returns')
+        ax3.set_title('Asset Returns', fontweight='bold')
         ax3.set_ylabel('Log Returns')
         ax3.legend(loc='upper left')
 
         # --- Panel 4: Spread Returns ---
         ax4 = fig.add_subplot(gs[3, :])
         ax4.plot(spread_returns.index, spread_returns, color='tab:green', alpha=0.8)
-        ax4.set_title('Spread Returns')
+        ax4.set_title('Spread Returns', fontweight='bold')
         ax4.set_ylabel('Returns')
 
-        # --- Panel 5: Histograms ---
+        # --- Panel 5: Histograms (Log Scale to expose Fat Tails) ---
         # Histogram A
         ax5a = fig.add_subplot(gs[4, 0])
-        ax5a.hist(df['Return_A'], bins=50, color='tab:blue', alpha=0.7)
-        ax5a.set_title('Return A Dist')
+        ax5a.hist(df['Return_A'].dropna(), bins=75, color='tab:blue', alpha=0.7, log=True)
+        ax5a.set_title('Return A Dist (Log Scale)')
+        ax5a.set_ylabel('Frequency (log)')
         
         # Histogram B
         ax5b = fig.add_subplot(gs[4, 1])
-        ax5b.hist(df['Return_B'], bins=50, color='tab:orange', alpha=0.7)
-        ax5b.set_title('Return B Dist')
+        ax5b.hist(df['Return_B'].dropna(), bins=75, color='tab:orange', alpha=0.7, log=True)
+        ax5b.set_title('Return B Dist (Log Scale)')
         
         # Histogram Spread (Level)
         ax5c = fig.add_subplot(gs[4, 2])
-        ax5c.hist(spread, bins=50, color='tab:purple', alpha=0.7)
+        ax5c.hist(spread.dropna(), bins=75, color='tab:purple', alpha=0.7, log=True)
         ax5c.axvline(spread.mean(), color='black', linestyle='dashed', linewidth=1.5)
-        ax5c.set_title('Spread Level Dist')
+        ax5c.set_title('Spread Level Dist (Log Scale)')
 
         plt.show()
