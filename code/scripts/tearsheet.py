@@ -159,17 +159,16 @@ class TEARSHEET:
             returns = self.df[f'Return_{strat}'] * 10000
             active_returns = returns[returns != 0]
             if len(active_returns) > 0:
-                ax3.hist(active_returns, bins=50, alpha=0.5, color=colors.get(strat, 'black'), 
-                         label=f'{strat} (Active Bars)', density=True)
-        ax3.set_title("Distribution of Active Bar Returns", fontsize=12, fontweight='bold')
-        ax3.set_ylabel("Density")
+                # FIX: Added log=True and increased bins to 75
+                ax3.hist(active_returns, bins=75, alpha=0.5, color=colors.get(strat, 'black'), 
+                         label=f'{strat} (Active Bars)', density=True, log=True)
+        
+        ax3.set_title("Distribution of Active Bar Returns (Log Scale)", fontsize=12, fontweight='bold')
+        ax3.set_ylabel("Density (Log)")
         ax3.set_xlabel("Return (bps)")
         ax3.axvline(0, color='black', linestyle='--', linewidth=1)
         ax3.legend(loc='upper right')
         ax3.grid(True, alpha=0.3)
-        
-        plt.tight_layout()
-        plt.show()
 
     def plot_positions_and_regimes(self):
         """Plots strategy positioning alongside the Markov danger probabilities."""
