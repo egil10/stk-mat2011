@@ -118,28 +118,23 @@ class SCREENER:
 
     # plotting function
     def _plot_rolling(self):
+        rdf = self.rolling_df
+        beta_mean = rdf['beta'].mean()
         
-        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 6), sharex=True)
-
-        ax1.plot(self.rolling_df.index, self.rolling_df['p_value'],
-                 color='tab:blue', linewidth=1.2)
-        ax1.axhline(0.05, color='red', linestyle='--', alpha=0.6, label='5%')
-        ax1.axhline(0.10, color='orange', linestyle=':', alpha=0.6, label='10%')
-        ax1.set_ylabel('p-value'); ax1.set_title('Rolling Engle-Granger p-value')
-        ax1.legend(loc='upper right'); ax1.grid(True, alpha=0.3)
-
-        hl = self.rolling_df['half_life'].replace([np.inf, -np.inf], np.nan)
-        ax2.plot(self.rolling_df.index, hl, color='tab:purple', linewidth=1.2)
-        ax2.set_ylabel('half-life (bars)')
-        ax2.set_title('Rolling Half-Life')
-        ax2.set_yscale('log')
-        ax2.grid(True, alpha=0.3)
-
-        ax3.plot(self.rolling_df.index, self.rolling_df['beta'],
-                 color='tab:green', linewidth=1.2)
-        ax3.axhline(self.rolling_df['beta'].mean(), color='black', linestyle='--',
-                    alpha=0.5, label=f"mean={self.rolling_df['beta'].mean():.3f}")
-        ax3.set_ylabel('beta'); ax3.set_title('Rolling Hedge Ratio')
-        ax3.legend(loc='upper right'); ax3.grid(True, alpha=0.3)
-
+        panels = [
+            ('p_value',   'tab:blue',   'Rolling Engle-Granger p-value', 'p-value',         'linear', [(0.05, '--', 'red', '5%'), (0.10, ':', 'orange', '10%')]),
+            ('half_life', 'tab:purple', 'Rolling Half-Life',             'half-life (bars)', 'log',   []),
+            ('beta',      'tab:green',  'Rolling Hedge Ratio',           'beta',             'linear', [(beta_mean, '--', 'black', f'mean={beta_mean:.3f}')]),
+        ]
+        
+        fig, axes = plt.subplots(3, 1, figsize=(12, 9), sharex=True)
+        for ax, (col, color, title, ylabel, yscale, hlines) in zip(axes, panels):
+            series = rdf[col].replace([np.inf, -np.inf], np.nan)
+            ax.plot(rdf.index, series, color=color, linewidth=1.2)
+            for y, ls, c, lbl in hlines:
+                ax.axhline(y, color=c, linestyle=ls, alpha=0.6, label=lbl)
+            ax.set(ylabel=ylabel, title=title, yscale=yscale)
+            ax.grid(True, alpha=0.3)
+            if hlines:
+                ax.legend(loc='upper right')
         plt.tight_layout(); plt.show()
