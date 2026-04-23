@@ -25,9 +25,21 @@ class SPREAD:
         self.data = None
 
     def _load_parquet(self, file_paths):
+        """Loads parquet files and IMMEDIATELY applies session filters per file to save RAM."""
         if isinstance(file_paths, list):
-            return pd.concat([pd.read_parquet(fp) for fp in file_paths])
-        return pd.read_parquet(file_paths)
+            filtered_chunks = []
+            for fp in file_paths:
+                # Read one month
+                df_chunk = pd.read_parquet(fp)
+                # Instantly drop the overnight data for this month
+                df_chunk = self._apply_session_filter(df_chunk)
+                filtered_chunks.append(df_chunk)
+            # Concat only the surviving daytime data
+            return pd.concat(filtered_chunks, ignore_index=True)
+        
+        # Fallback for single file
+        df = pd.read_parquet(file_paths)
+        return self._apply_session_filter(df)
 
     def _apply_session_filter(self, df):
         """Use self.active_days and self.active_hours. Hour filter is [start, end)."""
@@ -40,14 +52,20 @@ class SPREAD:
         return df[mask]
 
     def _aggregate_bars(self, ask_file, bid_file):
-        # 1. Load the raw data into memory (Unsorted)
+        # 1. Load the data (It is now automatically filtered for active_hours inside _load_parquet!)
         df_ask = self._load_parquet(ask_file)
         df_bid = self._load_parquet(bid_file)
 
-        # 2. IMMEDIATELY filter out the overnight hours to save RAM!
-        # This instantly drops ~60% of the rows before Pandas tries to sort them.
-        df_ask = self._apply_session_filter(df_ask)
-        df_bid = self._apply_session_filter(df_bid)
+        # 2. Sort and rename the remaining daytime data
+        df_ask = (df_ask
+                  .sort_values('datetime')
+                  .rename(columns={'price': 'ask_price', 'volume': 'ask_volume'}))
+        
+        df_bid = (df_bid
+                  .sort_values('datetime')
+                  .rename(columns={'price': 'bid_price', 'volume': 'bid_volume'}))
+
+        # ... (rest of the method stays exactly the same) ...
 
         # 3. Now sort and rename ONLY the daytime data that survived the filter
         df_ask = (df_ask
