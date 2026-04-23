@@ -40,16 +40,25 @@ class SPREAD:
         return df[mask]
 
     def _aggregate_bars(self, ask_file, bid_file):
-        df_ask = (self._load_parquet(ask_file)
-                  .sort_values('datetime')
-                  .rename(columns={'price': 'ask_price', 'volume': 'ask_volume'}))
-        df_bid = (self._load_parquet(bid_file)
-                  .sort_values('datetime')
-                  .rename(columns={'price': 'bid_price', 'volume': 'bid_volume'}))
+        # 1. Load the raw data into memory (Unsorted)
+        df_ask = self._load_parquet(ask_file)
+        df_bid = self._load_parquet(bid_file)
 
+        # 2. IMMEDIATELY filter out the overnight hours to save RAM!
+        # This instantly drops ~60% of the rows before Pandas tries to sort them.
         df_ask = self._apply_session_filter(df_ask)
         df_bid = self._apply_session_filter(df_bid)
 
+        # 3. Now sort and rename ONLY the daytime data that survived the filter
+        df_ask = (df_ask
+                  .sort_values('datetime')
+                  .rename(columns={'price': 'ask_price', 'volume': 'ask_volume'}))
+        
+        df_bid = (df_bid
+                  .sort_values('datetime')
+                  .rename(columns={'price': 'bid_price', 'volume': 'bid_volume'}))
+
+        # 4. Merge the surviving, sorted data
         df_ticks = pd.merge_asof(
             df_ask[['datetime', 'ask_price', 'ask_volume']],
             df_bid[['datetime', 'bid_price', 'bid_volume']],
@@ -73,6 +82,7 @@ class SPREAD:
             bid=('bid_price', 'last'),
             ask=('ask_price', 'last'),
         ).set_index('timestamp').sort_index()  # defensive sort
+        
         return bars
 
     def build(self, file_paths):
