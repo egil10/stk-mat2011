@@ -205,11 +205,7 @@ class ENGINE:
     def predict_oos(self, test_df, train_tail_df,
                         z_window=1000, scaling=10000,
                         coint_window=None, coint_refit_every=1):
-            """
-            Rolling-cointegration OOS projection.
-            COMPUTATIONALLY OPTIMIZED: Uses static AR and GARCH parameters 
-            from the training set for the 1-day OOS period.
-            """
+            
             assert train_tail_df.index.max() < test_df.index.min(), \
                 "train_tail_df must end strictly before test_df begins"
 
@@ -258,25 +254,15 @@ class ENGINE:
             test_data['AR_Phi'] = self.ar_phi if self.ar_phi is not None else np.nan
             
             return test_data
-
-
+        
     @classmethod
     def walk_forward(cls, df, train_days=30, z_window=250, coint_window=None,
                     k_regimes=2, scaling=10000, print_freq=10, verbose=True):
-        """
-        Runs the full walk-forward loop: one engine per test day, fit on the
-        preceding `train_days` days, project OOS onto the test day.
-
-        Returns
-        -------
-        live_trading_data : pd.DataFrame   stitched OOS predictions
-        df_params         : pd.DataFrame   per-fold scalar parameters
-        """
+        
         df = df.copy()
         df['Date'] = df.index.date
         unique_days = df['Date'].unique()
 
-        # Auto-size coint_window if not given
         if coint_window is None:
             sample = df[df['Date'].isin(unique_days[:train_days])]
             coint_window = min(2000, int(0.4 * len(sample)))
@@ -297,8 +283,9 @@ class ENGINE:
                 eng.fit_ar_reversion(lags=1)
                 eng.fit_garch_vol(scaling=scaling)
                 eng.fit_markov_regimes(k_regimes=k_regimes, scaling=scaling)
-                oos = eng.predict_oos(test_df, eng.data,
-                                    z_window=z_window, coint_window=coint_window)
+                # Updated predict_oos call without the refit arguments
+                oos = eng.predict_oos(test_df, eng.data, 
+                                    z_window=z_window, scaling=scaling, coint_window=coint_window)
             except Exception as e:
                 if verbose:
                     print(f"[{unique_days[i]}] skipped: {type(e).__name__}: {e}")

@@ -6,13 +6,8 @@ import matplotlib.gridspec as gridspec
 from scipy import stats
 
 class TEARSHEET:
-    """
-    Simplified but highly analytical tearsheet for comparing pairs trading strategies.
-    Calculates 20 robust financial and statistical metrics and plots performance.
-    """
     def __init__(self, df_results):
         self.df = df_results
-        # Target strategies matching the new backtester output
         self.strats = ['Baseline', 'AR', 'MS_AR'] 
 
     def _calc_metrics(self, strat_name, ann_factor):
@@ -45,7 +40,6 @@ class TEARSHEET:
         prof_factor = (gross_prof / gross_loss) if gross_loss != 0 else np.nan
 
         # --- 2. Statistical & Trade Metrics ---
-        # A round trip trade is roughly 2 position changes (enter then exit)
         trades = (positions.diff().abs() > 0).sum() / 2 
         active_bars = (returns != 0).sum()
         exposure = active_bars / len(returns) if len(returns) > 0 else 0
@@ -87,7 +81,6 @@ class TEARSHEET:
         }
 
     def generate_report(self):
-        """Prints a heavily detailed 20-metric report comparing the strategies."""
         idx_series = pd.Series(self.df.index)
         unique_days_count = max(len(idx_series.dt.date.unique()), 1)
         ann_factor = len(self.df) / (unique_days_count / 252)
@@ -98,7 +91,6 @@ class TEARSHEET:
             if stats_dict:
                 results[strat] = stats_dict
         
-        # Convert to DataFrame for a beautiful printed table
         report_df = pd.DataFrame(results)
         
         print(f"\n{'='*75}")
@@ -110,7 +102,6 @@ class TEARSHEET:
                 print(f"\n{index}")
                 continue
                 
-            # Format percentages vs floats
             row_str = f"{index:<30} |"
             for val in row:
                 if isinstance(val, str):
@@ -125,7 +116,6 @@ class TEARSHEET:
         print(f"{'='*75}\n")
 
     def plot_performance(self):
-        """Generates a 3-panel plot: Equity Curve, Underwater, and Distributions."""
         valid_strats = [s for s in self.strats if f'CumReturn_{s}' in self.df.columns]
         colors = {'Baseline': 'gray', 'AR': 'tab:blue', 'MS_AR': 'tab:purple'}
         
@@ -158,7 +148,7 @@ class TEARSHEET:
         ax3 = fig.add_subplot(gs[2])
         for strat in valid_strats:
             returns = self.df[f'Return_{strat}'] * 10000
-            active_returns = returns[returns != 0] # Only plot active bars
+            active_returns = returns[returns != 0]
             if len(active_returns) > 0:
                 ax3.hist(active_returns, bins=50, alpha=0.5, color=colors.get(strat, 'black'), 
                          label=f'{strat} (Active Bars)', density=True)

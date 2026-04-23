@@ -19,7 +19,6 @@ def _generate_positions(z_scores, entry_z, exit_z, signals_allowed):
             continue
             
         if curr == 0:
-            # Only enter if the overarching strategy filter allows it
             if signals_allowed[i]:
                 if z_scores[i] < -entry_z:
                     curr = 1
@@ -35,10 +34,6 @@ def _generate_positions(z_scores, entry_z, exit_z, signals_allowed):
     return pos
 
 class BACKTESTER:
-    """
-    Simplified, ultra-fast backtester comparing pure Z-score baseline
-    against an AR-filtered strategy and a Markov-Regime + AR strategy.
-    """
     def __init__(self, df):
         self.data = df.copy()
 
@@ -53,7 +48,6 @@ class BACKTESTER:
         base_allowed = np.ones(len(self.data), dtype=np.bool_)
         
         # 2. AR Only: Allowed to signal only if AR indicates strong mean reversion (< limit)
-        # Using np.where to handle NaNs safely
         ar_allowed = np.where(np.isfinite(ar_phi), ar_phi < ar_limit, False)
         
         # 3. MS-AR: Allowed to signal only if AR indicates reversion AND Regime is Safe
