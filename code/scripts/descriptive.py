@@ -34,7 +34,7 @@ class DESCRIPTIVE:
         print(f"Tightest 4h Window: {int(best_hour-3)}:00 to {int(best_hour)}:00 UTC")
         print(f"Overall Median Spread: A={self.df['HalfSpread_A_bps'].median():.2f} | B={self.df['HalfSpread_B_bps'].median():.2f} bps")
         
-        fig, ax = plt.subplots(figsize=(10, 4))
+        fig, ax = plt.subplots(figsize=(12, 3))
         hourly_spread.plot(kind='bar', ax=ax, color=['#1f77b4', '#ff7f0e'], alpha=0.8)
         ax.set_title("Median Bid-Ask Spread by Hour (UTC)")
         ax.set_ylabel("Basis Points")
@@ -66,7 +66,7 @@ class DESCRIPTIVE:
         vol_a = self.df['Return_A'].rolling(100).std() * 10000
         vol_b = self.df['Return_B'].rolling(100).std() * 10000
         
-        plt.figure(figsize=(12, 4))
+        plt.figure(figsize=(12, 3))
         plt.plot(vol_a, label=f"{self.name_a} Vol", alpha=0.7)
         plt.plot(vol_b, label=f"{self.name_b} Vol", alpha=0.7)
         plt.title("Rolling Realized Volatility (100-bar window)")
