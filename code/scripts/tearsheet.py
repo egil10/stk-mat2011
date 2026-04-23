@@ -6,9 +6,10 @@ import matplotlib.gridspec as gridspec
 from scipy import stats
 
 class TEARSHEET:
-    def __init__(self, df_results):
+    def __init__(self, df_results, df_params=None):  # <-- Add df_params here
         self.df = df_results
-        self.strats = ['Baseline', 'AR', 'MS_AR'] 
+        self.params = df_params                      # <-- Assign it here
+        self.strats = ['Baseline', 'AR', 'MS_AR']
 
     def _calc_metrics(self, strat_name, ann_factor):
         ret_col = f'Return_{strat_name}'
