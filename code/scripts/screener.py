@@ -127,7 +127,7 @@ class SCREENER:
             ('beta',      'tab:green',  'Rolling Hedge Ratio',           'beta',             'linear', [(beta_mean, '--', 'black', f'mean={beta_mean:.3f}')]),
         ]
         
-        fig, axes = plt.subplots(3, 1, figsize=(12, 9), sharex=True)
+        fig, axes = plt.subplots(3, 1, figsize=(12, 6), sharex=True)
         for ax, (col, color, title, ylabel, yscale, hlines) in zip(axes, panels):
             series = rdf[col].replace([np.inf, -np.inf], np.nan)
             ax.plot(rdf.index, series, color=color, linewidth=1.2)

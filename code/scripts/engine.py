@@ -203,103 +203,61 @@ class ENGINE:
     # OOS projection with rolling cointegration
     # ------------------------------------------------------------------
     def predict_oos(self, test_df, train_tail_df,
-                    z_window=1000, scaling=10000,
-                    refit_every=500, garch_window=5000, ar_window=2000,
-                    coint_window=None, coint_refit_every=1):
-        """
-        Rolling-cointegration OOS projection.
- 
-        The rolling OLS is continued across the train/test boundary using the
-        tail of training data as seed, so the first OOS bar already has a
-        fully-formed beta estimate. Beta at each OOS bar uses ONLY data up to
-        (and including) that bar; the spread RETURN uses the 1-bar-lagged beta.
-        """
-        assert train_tail_df.index.max() < test_df.index.min(), \
-            "train_tail_df must end strictly before test_df begins"
- 
-        if coint_window is None:
-            coint_window = self.coint_window or 2000
- 
-        test_data = test_df.copy()
- 
-        # --- Combined log series across train tail + test, for rolling OLS ---
-        combined_logA = pd.concat([train_tail_df['Log_A'], test_data['Log_A']])
-        combined_logB = pd.concat([train_tail_df['Log_B'], test_data['Log_B']])
-        # Drop any accidental duplicate indices
-        combined_logA = combined_logA[~combined_logA.index.duplicated(keep='last')]
-        combined_logB = combined_logB[~combined_logB.index.duplicated(keep='last')]
- 
-        beta_full, alpha_full = self._rolling_ols(
-            combined_logA, combined_logB, coint_window, refit_every=coint_refit_every
-        )
-        beta_test = beta_full.loc[test_data.index]
-        alpha_test = alpha_full.loc[test_data.index]
-        test_data['Beta'] = beta_test
-        test_data['Alpha'] = alpha_test
- 
-        # --- Spread level (contemporaneous) and returns (lagged beta) ---
-        test_data['Spread_Level'] = test_data['Log_A'] - (beta_test * test_data['Log_B'] + alpha_test)
- 
-        # For the RETURN we need beta at t-1. To get a sensible value for the
-        # very first OOS bar, pull beta from the last bar of the train tail.
-        beta_lag_test = beta_full.shift(1).loc[test_data.index]
-        test_data['Spread_Return'] = test_data['Return_A'] - beta_lag_test * test_data['Return_B']
- 
-        # --- Rolling z-score seeded with the train tail spread ---
-        past_spread = train_tail_df['Spread_Level'].iloc[-z_window:]
-        combined_spread = pd.concat([past_spread, test_data['Spread_Level']])
-        combined_spread = combined_spread[~combined_spread.index.duplicated(keep='last')]
-        roll_mean = combined_spread.rolling(window=z_window).mean()
-        roll_std = combined_spread.rolling(window=z_window).std()
-        test_data['Z_Score'] = ((combined_spread - roll_mean) / roll_std).loc[test_data.index]
- 
-        # --- OOS HMM classification (unchanged) ---
-        scaled_returns = test_data['Spread_Return'] * scaling
-        prob_safe = norm.pdf(scaled_returns, loc=0, scale=np.sqrt(self.safe_variance))
-        prob_danger = norm.pdf(scaled_returns, loc=0, scale=np.sqrt(self.danger_variance))
-        denom = prob_safe + prob_danger
-        test_data['Danger_Regime_Prob'] = np.where(denom > 0, prob_danger / denom, 0.5)
- 
-        # --- Rolling GARCH & AR on spread returns / levels ---
-        train_sr = train_tail_df['Spread_Return'].dropna()
-        test_sr = test_data['Spread_Return'].dropna()
-        full_sr = pd.concat([train_sr, test_sr])
-        full_sr = full_sr[~full_sr.index.duplicated(keep='last')]
-        full_sl = pd.concat([train_tail_df['Spread_Level'].dropna(),
-                             test_data['Spread_Level'].dropna()])
-        full_sl = full_sl[~full_sl.index.duplicated(keep='last')]
- 
-        garch_vol_out = np.full(len(test_data), np.nan)
-        ar_phi_out = np.full(len(test_data), np.nan)
-        last_garch_vol = self.forecasted_vol if self.forecasted_vol is not None else np.nan
-        last_ar_phi = self.ar_phi if self.ar_phi is not None else np.nan
- 
-        for i, ts in enumerate(test_data.index):
-            if i % refit_every == 0:
-                sr_slice = full_sr.loc[full_sr.index < ts].iloc[-garch_window:]
-                if len(sr_slice) > 100:
-                    try:
-                        m = arch_model(sr_slice * scaling, vol='Garch', p=1, q=1,
-                                       dist='Normal', rescale=False).fit(disp='off')
-                        fc = m.forecast(horizon=1)
-                        last_garch_vol = float(np.sqrt(fc.variance.values[-1, 0]))
-                    except Exception:
-                        pass
- 
-                sl_slice = full_sl.loc[full_sl.index < ts].iloc[-ar_window:]
-                if len(sl_slice) > 50:
-                    try:
-                        ar_m = sm.tsa.AutoReg(sl_slice, lags=1).fit()
-                        last_ar_phi = float(ar_m.params.iloc[1])
-                    except Exception:
-                        pass
- 
-            garch_vol_out[i] = last_garch_vol
-            ar_phi_out[i] = last_ar_phi
- 
-        test_data['GARCH_Vol'] = garch_vol_out
-        test_data['AR_Phi'] = ar_phi_out
-        return test_data
+                        z_window=1000, scaling=10000,
+                        coint_window=None, coint_refit_every=1):
+            """
+            Rolling-cointegration OOS projection.
+            COMPUTATIONALLY OPTIMIZED: Uses static AR and GARCH parameters 
+            from the training set for the 1-day OOS period.
+            """
+            assert train_tail_df.index.max() < test_df.index.min(), \
+                "train_tail_df must end strictly before test_df begins"
+
+            if coint_window is None:
+                coint_window = self.coint_window or 2000
+
+            test_data = test_df.copy()
+
+            # --- Combined log series across train tail + test, for rolling OLS ---
+            combined_logA = pd.concat([train_tail_df['Log_A'], test_data['Log_A']])
+            combined_logB = pd.concat([train_tail_df['Log_B'], test_data['Log_B']])
+            combined_logA = combined_logA[~combined_logA.index.duplicated(keep='last')]
+            combined_logB = combined_logB[~combined_logB.index.duplicated(keep='last')]
+
+            beta_full, alpha_full = self._rolling_ols(
+                combined_logA, combined_logB, coint_window, refit_every=coint_refit_every
+            )
+            beta_test = beta_full.loc[test_data.index]
+            alpha_test = alpha_full.loc[test_data.index]
+            test_data['Beta'] = beta_test
+            test_data['Alpha'] = alpha_test
+
+            # --- Spread level (contemporaneous) and returns (lagged beta) ---
+            test_data['Spread_Level'] = test_data['Log_A'] - (beta_test * test_data['Log_B'] + alpha_test)
+
+            beta_lag_test = beta_full.shift(1).loc[test_data.index]
+            test_data['Spread_Return'] = test_data['Return_A'] - beta_lag_test * test_data['Return_B']
+
+            # --- Rolling z-score seeded with the train tail spread ---
+            past_spread = train_tail_df['Spread_Level'].iloc[-z_window:]
+            combined_spread = pd.concat([past_spread, test_data['Spread_Level']])
+            combined_spread = combined_spread[~combined_spread.index.duplicated(keep='last')]
+            roll_mean = combined_spread.rolling(window=z_window).mean()
+            roll_std = combined_spread.rolling(window=z_window).std()
+            test_data['Z_Score'] = ((combined_spread - roll_mean) / roll_std).loc[test_data.index]
+
+            # --- OOS HMM classification (Vectorized) ---
+            scaled_returns = test_data['Spread_Return'] * scaling
+            prob_safe = norm.pdf(scaled_returns, loc=0, scale=np.sqrt(self.safe_variance))
+            prob_danger = norm.pdf(scaled_returns, loc=0, scale=np.sqrt(self.danger_variance))
+            denom = prob_safe + prob_danger
+            test_data['Danger_Regime_Prob'] = np.where(denom > 0, prob_danger / denom, 0.5)
+
+            # --- Static Parameters Forward Fill (Massive Speedup) ---
+            test_data['GARCH_Vol'] = self.forecasted_vol if self.forecasted_vol is not None else np.nan
+            test_data['AR_Phi'] = self.ar_phi if self.ar_phi is not None else np.nan
+            
+            return test_data
 
 
     @classmethod
