@@ -4,7 +4,6 @@ import pandas as pd
 import statsmodels.api as sm
 from statsmodels.tsa.stattools import coint
 
-
 class SCREENER:
     """
     Diagnostic screener for pairs trading. Provides both a full-sample view
