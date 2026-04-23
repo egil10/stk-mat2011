@@ -161,3 +161,73 @@ class TEARSHEET:
         
         plt.tight_layout()
         plt.show()
+
+    def plot_positions_and_regimes(self):
+        """Plots strategy positioning alongside the Markov danger probabilities."""
+        fig = plt.figure(figsize=(14, 8))
+        gs = gridspec.GridSpec(2, 1, height_ratios=[1, 1], hspace=0.3)
+        
+        # Panel 1: Position Holding State
+        ax1 = fig.add_subplot(gs[0])
+        ax1.plot(self.df.index, self.df['Target_Baseline'], color='gray', alpha=0.5, label='Baseline', lw=1)
+        ax1.plot(self.df.index, self.df['Target_AR'] + 0.05, color='tab:blue', alpha=0.7, label='AR (+ offset)', lw=1)
+        ax1.plot(self.df.index, self.df['Target_MS_AR'] - 0.05, color='tab:purple', alpha=0.9, label='MS-AR (- offset)', lw=1)
+        ax1.set_yticks([-1, 0, 1])
+        ax1.set_yticklabels(['Short (-1)', 'Flat (0)', 'Long (1)'])
+        ax1.set_title("Strategy Position State Machine (When are we holding?)", fontweight='bold')
+        ax1.legend(loc='upper right')
+        ax1.grid(True, alpha=0.3)
+        
+        # Panel 2: Regime Classification
+        ax2 = fig.add_subplot(gs[1], sharex=ax1)
+        ax2.plot(self.df.index, self.df['Danger_Regime_Prob'], color='red', alpha=0.8, lw=1.2)
+        ax2.axhline(0.7, color='black', linestyle='--', label='Danger Kill-Switch Threshold (0.7)')
+        ax2.fill_between(self.df.index, self.df['Danger_Regime_Prob'], 0.7, 
+                         where=(self.df['Danger_Regime_Prob'] > 0.7), color='red', alpha=0.3, label='Trading Halted')
+        ax2.set_title("Markov HMM: P(State = Danger | Data)", fontweight='bold')
+        ax2.set_ylabel("Probability")
+        ax2.legend(loc='upper right')
+        ax2.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        plt.show()
+
+    def plot_markov_dynamics(self):
+        """Plots how the Markov regime means, variances, and transition probabilities evolve over time."""
+        if not hasattr(self, 'params') or self.params is None or 'Safe_Mean' not in self.params.columns:
+            print("Markov parameters not found in df_params. Ensure ENGINE is tracking them.")
+            return
+            
+        fig = plt.figure(figsize=(14, 10))
+        gs = gridspec.GridSpec(3, 1, hspace=0.3)
+        
+        # Panel 1: Regime Variances (Sigma^2)
+        ax1 = fig.add_subplot(gs[0])
+        ax1.plot(self.params.index, self.params['Danger_Variance'], color='red', label='Danger Regime Variance')
+        ax1.plot(self.params.index, self.params['Safe_Variance'], color='green', label='Safe Regime Variance')
+        ax1.set_yscale('log')
+        ax1.set_title("Rolling Markov Variances ($\sigma^2$)", fontweight='bold')
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+        
+        # Panel 2: Regime Means (Mu)
+        ax2 = fig.add_subplot(gs[1], sharex=ax1)
+        ax2.plot(self.params.index, self.params['Danger_Mean'], color='darkred', label='Danger Mean ($\mu$)')
+        ax2.plot(self.params.index, self.params['Safe_Mean'], color='darkgreen', label='Safe Mean ($\mu$)')
+        ax2.axhline(0, color='black', linestyle='--', lw=1)
+        ax2.set_title("Rolling Markov Expected Returns ($\mu$ in bps)", fontweight='bold')
+        ax2.legend()
+        ax2.grid(True, alpha=0.3)
+        
+        # Panel 3: Transition Probabilities Matrix diagonals
+        ax3 = fig.add_subplot(gs[2], sharex=ax1)
+        ax3.plot(self.params.index, self.params['P_Danger_Danger'], color='salmon', label='P(Danger | Danger)')
+        ax3.plot(self.params.index, self.params['P_Safe_Safe'], color='lightgreen', label='P(Safe | Safe)')
+        ax3.set_title("Regime Persistence (Transition Matrix Diagonals)", fontweight='bold')
+        ax3.set_ylabel("Probability")
+        ax3.set_ylim(0, 1.05)
+        ax3.legend()
+        ax3.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        plt.show()

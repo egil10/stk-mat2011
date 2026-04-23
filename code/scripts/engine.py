@@ -181,22 +181,28 @@ class ENGINE:
         jitter = np.random.normal(0, jitter_size, size=len(self.data))
         target = (self.data['Spread_Return'] * scaling) + jitter
         target = pd.Series(target, index=self.data.index).dropna()
- 
+
         model = sm.tsa.MarkovRegression(
             target, k_regimes=k_regimes,
             switching_variance=True, trend='c',
         ).fit(disp=False)
- 
+
         variances = [model.params[f'sigma2[{i}]'] for i in range(k_regimes)]
         danger_idx = int(np.argmax(variances))
         safe_idx = int(np.argmin(variances))
+        
         self.danger_variance = variances[danger_idx]
         self.safe_variance = variances[safe_idx]
+        
+        # --- NEW: Extract Means (mu) and Transition Probabilities ---
+        self.danger_mean = model.params.get(f'const[{danger_idx}]', 0.0)
+        self.safe_mean = model.params.get(f'const[{safe_idx}]', 0.0)
+        self.p_danger_danger = model.params.get(f'p[{danger_idx}->{danger_idx}]', np.nan)
+        self.p_safe_safe = model.params.get(f'p[{safe_idx}->{safe_idx}]', np.nan)
+
         self.data['Danger_Regime_Prob'] = (
             model.smoothed_marginal_probabilities[danger_idx].reindex(self.data.index)
         )
-        print(f"Markov Fitted (k={k_regimes}) | Danger Var: {self.danger_variance:.2f} "
-              f"| Safe Var: {self.safe_variance:.2f}")
         return self.data
  
     # ------------------------------------------------------------------
@@ -297,6 +303,10 @@ class ENGINE:
                 'Beta': eng.beta, 'Alpha': eng.alpha,
                 'Safe_Variance': eng.safe_variance,
                 'Danger_Variance': eng.danger_variance,
+                'Safe_Mean': eng.safe_mean,              # <-- NEW
+                'Danger_Mean': eng.danger_mean,          # <-- NEW
+                'P_Safe_Safe': eng.p_safe_safe,          # <-- NEW
+                'P_Danger_Danger': eng.p_danger_danger,  # <-- NEW
                 'GARCH_Vol': eng.forecasted_vol,
                 'AR_Phi': eng.ar_phi,
             })
