@@ -14,7 +14,6 @@ class SPREAD:
     bars for pairs trading. Now carries bid/ask explicitly so downstream can
     model half-spread slippage. Includes a diagnostic plotting suite.
     """
-
     def __init__(self, agg_type='volume', threshold=1000,
                  active_days=None, active_hours=(10, 14)):
         if agg_type not in ('volume', 'tick'):
