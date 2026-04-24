@@ -13,6 +13,10 @@ code/data/processed/*
 code/data/*.csv
 !code/data/samples/
 
+# Keep synthetic data tracked
+!code/data/synthetic/
+!code/data/synthetic/**
+
 # Large/binary data formats
 *.parquet
 *.zip
