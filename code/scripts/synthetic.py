@@ -42,17 +42,13 @@ def _generate_ou_spread(n, theta, mu, sigma_0, sigma_1, p_00, p_11, jump_prob, j
     return spread, states
 
 class SYNTHETIC:
-    """
-    Generates synthetic tick data for pairs trading with known ground-truth parameters.
-    Simulates HMM regimes, fat-tailed jumps, and market microstructure.
-    Outputs directly to the Parquet schema required by the SPREAD class.
-    """
     def __init__(self, n_ticks=250000, start_date="2026-01-01", 
-                 symbol_a="SYN_A", symbol_b="SYN_B"):
+                 symbol_a="SYN_A", symbol_b="SYN_B", random_seed=42): # <--- Add seed here
         self.n_ticks = n_ticks
         self.start_date = pd.to_datetime(start_date, utc=True)
         self.symbol_a = symbol_a
         self.symbol_b = symbol_b
+        self.random_seed = random_seed # <--- Store it
         
         # Microstructure params
         self.median_spread_bps = 0.8
@@ -60,6 +56,10 @@ class SYNTHETIC:
         
     def generate_market(self, theta, mu, sigma_0, sigma_1, p_00, p_11, jump_prob, jump_std):
         print(f"Generating {self.n_ticks} synthetic ticks...")
+        
+        # --- LOCK THE RANDOM STATE ---
+        if self.random_seed is not None:
+            np.random.seed(self.random_seed)
         
         # 1. Generate Timestamps (Poisson arrival times for ticks)
         # Avg 1 tick every 3 seconds
