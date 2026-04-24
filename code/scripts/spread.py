@@ -51,57 +51,70 @@ class SPREAD:
         )
         return df[mask]
 
-    def _aggregate_bars(self, ask_file, bid_file):
-        # 1. Load the data (It is now automatically filtered for active_hours inside _load_parquet!)
-        df_ask = self._load_parquet(ask_file)
-        df_bid = self._load_parquet(bid_file)
+    def _aggregate_bars(self, ask_files, bid_files):
+        # 1. Ensure we are iterating over lists of files
+        if not isinstance(ask_files, list):
+            ask_files = [ask_files]
+            bid_files = [bid_files]
 
-        # 2. Sort and rename the remaining daytime data
-        df_ask = (df_ask
-                  .sort_values('datetime')
-                  .rename(columns={'price': 'ask_price', 'volume': 'ask_volume'}))
-        
-        df_bid = (df_bid
-                  .sort_values('datetime')
-                  .rename(columns={'price': 'bid_price', 'volume': 'bid_volume'}))
+        all_bars = []
+        carryover_volume = 0.0
+        carryover_ticks = 0
 
-        # ... (rest of the method stays exactly the same) ...
+        for ask_f, bid_f in zip(ask_files, bid_files):
+            # 2. Load ONE month at a time using your EXISTING filter logic
+            df_ask = self._load_parquet(ask_f)
+            df_bid = self._load_parquet(bid_f)
 
-        # 3. Now sort and rename ONLY the daytime data that survived the filter
-        df_ask = (df_ask
-                  .sort_values('datetime')
-                  .rename(columns={'price': 'ask_price', 'volume': 'ask_volume'}))
-        
-        df_bid = (df_bid
-                  .sort_values('datetime')
-                  .rename(columns={'price': 'bid_price', 'volume': 'bid_volume'}))
+            # Safety check: if episodic filter dropped all rows, skip to next month
+            if df_ask.empty or df_bid.empty:
+                continue
 
-        # 4. Merge the surviving, sorted data
-        df_ticks = pd.merge_asof(
-            df_ask[['datetime', 'ask_price', 'ask_volume']],
-            df_bid[['datetime', 'bid_price', 'bid_volume']],
-            on='datetime',
-            direction='backward'
-        ).dropna()
+            # 3. Sort and rename
+            df_ask = (df_ask
+                      .sort_values('datetime')
+                      .rename(columns={'price': 'ask_price', 'volume': 'ask_volume'}))
+            df_bid = (df_bid
+                      .sort_values('datetime')
+                      .rename(columns={'price': 'bid_price', 'volume': 'bid_volume'}))
 
-        df_ticks['mid_price'] = (df_ticks['bid_price'] + df_ticks['ask_price']) / 2.0
-        df_ticks['total_volume'] = df_ticks['bid_volume'] + df_ticks['ask_volume']
+            # 4. Merge Ask and Bid for this chunk
+            df_ticks = pd.merge_asof(
+                df_ask[['datetime', 'ask_price', 'ask_volume']],
+                df_bid[['datetime', 'bid_price', 'bid_volume']],
+                on='datetime',
+                direction='backward'
+            ).dropna()
 
-        if self.agg_type == 'volume':
-            df_ticks['cum_volume'] = df_ticks['total_volume'].cumsum()
-            df_ticks['bar_id'] = (df_ticks['cum_volume'] // self.threshold).astype(int)
-        else:  # 'tick'
-            df_ticks['bar_id'] = (np.arange(len(df_ticks)) // self.threshold).astype(int)
+            df_ticks['mid_price'] = (df_ticks['bid_price'] + df_ticks['ask_price']) / 2.0
+            df_ticks['total_volume'] = df_ticks['bid_volume'] + df_ticks['ask_volume']
 
-        # Keep bid/ask on the bar as the last observation within the bar
-        bars = df_ticks.groupby('bar_id').agg(
-            timestamp=('datetime', 'last'),
-            close=('mid_price', 'last'),
-            bid=('bid_price', 'last'),
-            ask=('ask_price', 'last'),
-        ).set_index('timestamp').sort_index()  # defensive sort
-        
-        return bars
+            # 5. Aggregation Logic with Stateful Carryover (Prevents breaking the AR flow)
+            if self.agg_type == 'volume':
+                df_ticks['cum_volume'] = df_ticks['total_volume'].cumsum() + carryover_volume
+                df_ticks['bar_id'] = (df_ticks['cum_volume'] // self.threshold).astype(int)
+                carryover_volume = df_ticks['cum_volume'].iloc[-1] % self.threshold
+            else:  # 'tick'
+                n_ticks = len(df_ticks)
+                tick_indices = np.arange(carryover_ticks, carryover_ticks + n_ticks)
+                df_ticks['bar_id'] = (tick_indices // self.threshold).astype(int)
+                carryover_ticks = (carryover_ticks + n_ticks) % self.threshold
+
+            # 6. Compress into final Bars for this month
+            bars = df_ticks.groupby('bar_id').agg(
+                timestamp=('datetime', 'last'),
+                close=('mid_price', 'last'),
+                bid=('bid_price', 'last'),
+                ask=('ask_price', 'last'),
+            ).set_index('timestamp').sort_index()
+
+            all_bars.append(bars)
+            
+            # 7. Delete raw ticks from memory before loading the next month! (RAM Saver)
+            del df_ask, df_bid, df_ticks
+
+        # 8. Concat only the tiny compressed volume bars at the very end
+        return pd.concat(all_bars).sort_index()
 
     def build(self, file_paths):
         if len(file_paths) != 4:
