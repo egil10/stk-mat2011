@@ -91,7 +91,17 @@ class DESCRIPTIVE:
                 r.max() * BPS,
             ]
 
-        cols = ['Mean (bps)', 'Vol (bps)', 'Skew', 'Kurt', 'P5 (bps)', 'P95 (bps)', 'Min (bps)', 'Max (bps)']
+        cols = [
+            'Mean (bps)', 
+            'Vol (bps)', 
+            'Skew', 
+            'Kurt', 
+            'P5 (bps)', 
+            'P95 (bps)', 
+            'Min (bps)', 
+            'Max (bps)'
+        ]
+
         stats_df = pd.DataFrame(
             {self.name_a: stats_row(ra), self.name_b: stats_row(rb)},
             index=cols,

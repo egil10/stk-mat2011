@@ -21,19 +21,23 @@ class SPREAD:
         self.agg_type = agg_type
         self.threshold = threshold
         self.active_days = active_days if active_days is not None else [0, 1, 2, 3, 4]
-        self.active_hours = active_hours  # (start_hour_inclusive, end_hour_exclusive)
+        self.active_hours = active_hours
         self.data = None
 
     def _load_parquet(self, file_paths):
-        """Loads parquet files and IMMEDIATELY applies session filters per file to save RAM."""
+        """
+        Loads parquet files and IMMEDIATELY applies session filters per file to save RAM.
+        """
         if isinstance(file_paths, list):
             filtered_chunks = []
+
             for fp in file_paths:
                 # Read one month
                 df_chunk = pd.read_parquet(fp)
                 # Instantly drop the overnight data for this month
                 df_chunk = self._apply_session_filter(df_chunk)
                 filtered_chunks.append(df_chunk)
+
             # Concat only the surviving daytime data
             return pd.concat(filtered_chunks, ignore_index=True)
         
@@ -42,7 +46,9 @@ class SPREAD:
         return self._apply_session_filter(df)
 
     def _apply_session_filter(self, df):
-        """Use self.active_days and self.active_hours. Hour filter is [start, end)."""
+        """
+        Use self.active_days and self.active_hours. Hour filter is [start, end).
+        """
         start_h, end_h = self.active_hours
         mask = (
             df['datetime'].dt.dayofweek.isin(self.active_days)
