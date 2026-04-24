@@ -71,23 +71,65 @@ class ENGINE:
         self.ar_phi = float(model.params.iloc[1])
         return self.ar_phi
 
-    def fit_markov_regimes(self, k_regimes=2, scaling=10000, jitter_size=1e-5, random_seed=42):
+    def fit_markov_regimes(self, k_regimes=2, scaling=10000, jitter_size=1e-5, random_seed=42, winsorize_std=None):
         if random_seed is not None: np.random.seed(random_seed)
+        
+        # Base target (scaled spread returns)
+        raw_target = self.data['Spread_Return'] * scaling
+
+        # --- OPTION 3: WINSORIZATION (CLIPPING FAT TAILS) ---
+        if winsorize_std is not None:
+            target_std = raw_target.std()
+            clip_bound = winsorize_std * target_std
+            # Cap the extreme moves to force a more Gaussian distribution
+            raw_target = raw_target.clip(lower=-clip_bound, upper=clip_bound)
+
         jitter = np.random.normal(0, jitter_size, size=len(self.data))
-        target = (self.data['Spread_Return'] * scaling) + jitter
+        target = raw_target + jitter
         target = pd.Series(target, index=self.data.index).dropna()
 
-        model = sm.tsa.MarkovRegression(target, k_regimes=k_regimes, switching_variance=True, trend='c').fit(disp=False)
+        # Note: trend='nc' (no constant) is often better for spread returns since they hover around 0
+        model = sm.tsa.MarkovRegression(
+            target, 
+            k_regimes=k_regimes, 
+            switching_variance=True, 
+            trend='nc' 
+        ).fit(disp=False)
+        
         variances = [model.params[f'sigma2[{i}]'] for i in range(k_regimes)]
         
-        danger_idx, safe_idx = int(np.argmax(variances)), int(np.argmin(variances))
-        self.danger_variance, self.safe_variance = variances[danger_idx], variances[safe_idx]
-        self.danger_mean = model.params.get(f'const[{danger_idx}]', 0.0)
-        self.safe_mean = model.params.get(f'const[{safe_idx}]', 0.0)
+        # --- OPTION 2: DYNAMIC REGIME SORTING (THE GARBAGE BIN) ---
+        # Sort indices by variance to correctly identify the regimes
+        sorted_idx = np.argsort(variances)
+        
+        safe_idx = int(sorted_idx[0])      # Lowest variance is always "Safe"
+        danger_idx = int(sorted_idx[1])    # Middle variance (or highest if k=2) is "Danger"
+        
+        # If k=3, sorted_idx[2] is the extreme "Garbage" state absorbing the fat tails.
+        # We don't map it to a specific variable because we just want to stay out of the market 
+        # anyway, so isolating it from our safe/danger math is enough.
+
+        self.danger_variance = variances[danger_idx]
+        self.safe_variance = variances[safe_idx]
+        
+        # Get probabilities (we use trend='nc', so mean is 0.0)
+        self.danger_mean = 0.0 
+        self.safe_mean = 0.0
+        
         self.p_danger_danger = model.params.get(f'p[{danger_idx}->{danger_idx}]', np.nan)
         self.p_safe_safe = model.params.get(f'p[{safe_idx}->{safe_idx}]', np.nan)
 
+        # For the backtester, we still care about the probability of being in the "Danger" regime
         self.data['Danger_Regime_Prob'] = model.smoothed_marginal_probabilities[danger_idx].reindex(self.data.index)
+        
+        # If we use 3 regimes, we probably also want to add the extreme probability so the backtester 
+        # can avoid trading during the "Garbage" state as well.
+        if k_regimes == 3:
+            extreme_idx = int(sorted_idx[2])
+            extreme_prob = model.smoothed_marginal_probabilities[extreme_idx].reindex(self.data.index)
+            # Total unsafe probability = Danger + Extreme
+            self.data['Danger_Regime_Prob'] = self.data['Danger_Regime_Prob'] + extreme_prob
+
         return self.data
 
     def predict_oos(self, test_df, train_tail_df, z_window, coint_window, scaling=10000):
@@ -124,7 +166,7 @@ class ENGINE:
         return test_data
 
     @classmethod
-    def walk_forward(cls, df, train_days, coint_window, z_window, scaling=10000, print_freq=10):
+    def walk_forward(cls, df, train_days, coint_window, z_window, k_regimes=3, winsorize_std=4.0, scaling=10000, print_freq=10):
         df = df.copy()
         df['Date'] = df.index.date
         unique_days = df['Date'].unique()
@@ -142,7 +184,7 @@ class ENGINE:
                 # Parameters passed dynamically here
                 eng.fit_cointegration(coint_window=coint_window, z_window=z_window)
                 eng.fit_ar_reversion(lags=1)
-                eng.fit_markov_regimes(k_regimes=2, scaling=scaling)
+                eng.fit_markov_regimes(k_regimes=k_regimes, scaling=scaling, winsorize_std=winsorize_std)
                 
                 # Parameters passed dynamically here
                 oos = eng.predict_oos(test_df, eng.data, z_window=z_window, coint_window=coint_window, scaling=scaling)
