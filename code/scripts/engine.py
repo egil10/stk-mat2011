@@ -93,7 +93,7 @@ class ENGINE:
             target, 
             k_regimes=k_regimes, 
             switching_variance=True, 
-            trend='nc' 
+            trend='c' 
         ).fit(disp=False)
         
         variances = [model.params[f'sigma2[{i}]'] for i in range(k_regimes)]
