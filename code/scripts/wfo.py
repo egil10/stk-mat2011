@@ -4,7 +4,7 @@ import numpy as np
 import optuna
 from backtester import BACKTESTER
 
-class WFO_MANAGER:
+class WFO:
     def __init__(self, engine_data):
         """
         engine_data: The output from ENGINE.walk_forward()
