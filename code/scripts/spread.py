@@ -8,6 +8,11 @@ from arch import arch_model
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
+try:
+    from plotting_utils import pdf_filename, save_figure_pdf
+except ImportError:
+    from .plotting_utils import pdf_filename, save_figure_pdf
+
 class SPREAD:
     """
     Ingests high-frequency tick data and outputs synchronized volume or tick
@@ -15,13 +20,17 @@ class SPREAD:
     model half-spread slippage. Includes a diagnostic plotting suite.
     """
     def __init__(self, agg_type='volume', threshold=1000,
-                 active_days=None, active_hours=(10, 14)):
+                 active_days=None, active_hours=(10, 14),
+                 save_pdf=False, pdf_dir=None, pdf_prefix="spread"):
         if agg_type not in ('volume', 'tick'):
             raise ValueError("agg_type must be 'volume' or 'tick'")
         self.agg_type = agg_type
         self.threshold = threshold
         self.active_days = active_days if active_days is not None else [0, 1, 2, 3, 4]
         self.active_hours = active_hours
+        self.save_pdf = save_pdf
+        self.pdf_dir = pdf_dir
+        self.pdf_prefix = pdf_prefix
         self.data = None
 
     def _load_parquet(self, file_paths):
@@ -153,7 +162,7 @@ class SPREAD:
         print(f"built {len(self.data)} rows")
         return self.data
 
-    def plot_diagnostics(self):
+    def plot_diagnostics(self, save_pdf=None, pdf_dir=None, filename=None):
         """
         Plots 5 panels of (12, 3) each. 
         Shows raw time series, spread, returns, and distribution histograms (Log-Scaled for Fat Tails).
@@ -227,4 +236,10 @@ class SPREAD:
         ax5c.axvline(spread.mean(), color='black', linestyle='dashed', linewidth=1.5)
         ax5c.set_title('Spread Level Dist (Log Scale)')
 
+        save_figure_pdf(
+            fig,
+            filename or pdf_filename(self.pdf_prefix, "spread_diagnostics"),
+            pdf_dir=pdf_dir or self.pdf_dir,
+            enabled=self.save_pdf if save_pdf is None else save_pdf,
+        )
         plt.show()

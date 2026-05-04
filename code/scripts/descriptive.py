@@ -6,6 +6,11 @@ import matplotlib.gridspec as gridspec
 from scipy import stats
 from scipy.stats import skew, kurtosis
 
+try:
+    from plotting_utils import pdf_filename, save_figure_pdf
+except ImportError:
+    from .plotting_utils import pdf_filename, save_figure_pdf
+
 
 class DESCRIPTIVE:
     """
@@ -13,10 +18,14 @@ class DESCRIPTIVE:
     All prints emitted first, then one multi-panel figure.
     """
 
-    def __init__(self, df, name_a="Asset A", name_b="Asset B"):
+    def __init__(self, df, name_a="Asset A", name_b="Asset B",
+                 save_pdf=False, pdf_dir=None, pdf_prefix=None):
         self.df = df.copy()
         self.name_a = name_a
         self.name_b = name_b
+        self.save_pdf = save_pdf
+        self.pdf_dir = pdf_dir
+        self.pdf_prefix = pdf_prefix or f"{name_a}_{name_b}"
 
         if not isinstance(self.df.index, pd.DatetimeIndex):
             self.df.index = pd.to_datetime(self.df.index)
@@ -170,7 +179,7 @@ class DESCRIPTIVE:
     # PLOT GRID
     # =================================================================
 
-    def _plot_everything(self):
+    def _plot_everything(self, save_pdf=None, pdf_dir=None, filename=None):
         fig = plt.figure(figsize=(16, 22))
         gs = gridspec.GridSpec(7, 2, hspace=0.6, wspace=0.3,
                                height_ratios=[1, 1, 1, 1, 1, 1, 1])
@@ -339,13 +348,19 @@ class DESCRIPTIVE:
 
         plt.suptitle(f"EDA: {self.name_a} vs {self.name_b}",
                      fontsize=15, fontweight='bold', y=0.995)
+        save_figure_pdf(
+            fig,
+            filename or pdf_filename(self.pdf_prefix, "eda"),
+            pdf_dir=pdf_dir or self.pdf_dir,
+            enabled=self.save_pdf if save_pdf is None else save_pdf,
+        )
         plt.show()
 
     # =================================================================
     # PUBLIC
     # =================================================================
 
-    def generate_full_eda(self):
+    def generate_full_eda(self, save_pdf=None, pdf_dir=None, filename=None):
         # All prints first
         self._print_overview()
         self._print_liquidity()
@@ -355,4 +370,4 @@ class DESCRIPTIVE:
         self._print_weekday()
 
         # Then one big grid of plots
-        self._plot_everything()
+        self._plot_everything(save_pdf=save_pdf, pdf_dir=pdf_dir, filename=filename)

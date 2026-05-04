@@ -7,6 +7,11 @@ import matplotlib.dates as mdates
 from matplotlib.colors import LinearSegmentedColormap
 from scipy import stats
 
+try:
+    from plotting_utils import pdf_filename, save_figure_pdf
+except ImportError:
+    from .plotting_utils import pdf_filename, save_figure_pdf
+
 
 class TEARSHEET:
     """
@@ -22,10 +27,14 @@ class TEARSHEET:
         'MS_AR':    '#8856a7',
     }
 
-    def __init__(self, df_results, df_params=None):
+    def __init__(self, df_results, df_params=None,
+                 save_pdf=False, pdf_dir=None, pdf_prefix="tearsheet"):
         self.df = df_results.copy()
         self.params = df_params
         self.strats = ['Baseline', 'AR', 'MS_AR']
+        self.save_pdf = save_pdf
+        self.pdf_dir = pdf_dir
+        self.pdf_prefix = pdf_prefix
 
         # Rebuild cumulative returns from raw returns — fixes WFO concat sawtooth
         for s in self.strats:
@@ -185,7 +194,7 @@ class TEARSHEET:
     # Main performance plot (fixed cumulative + richer panels)
     # ------------------------------------------------------------------
 
-    def plot_performance(self):
+    def plot_performance(self, save_pdf=None, pdf_dir=None, filename=None):
         valid = [s for s in self.strats if f'Return_{s}' in self.df.columns]
         BPS = 10000
 
@@ -292,13 +301,19 @@ class TEARSHEET:
         ax7.grid(True, alpha=0.3)
 
         plt.tight_layout()
+        save_figure_pdf(
+            fig,
+            filename or pdf_filename(self.pdf_prefix, "performance"),
+            pdf_dir=pdf_dir or self.pdf_dir,
+            enabled=self.save_pdf if save_pdf is None else save_pdf,
+        )
         plt.show()
 
     # ------------------------------------------------------------------
     # Positions & regimes — readable version
     # ------------------------------------------------------------------
 
-    def plot_positions_and_regimes(self):
+    def plot_positions_and_regimes(self, save_pdf=None, pdf_dir=None, filename=None):
         """Heatmap-style position display + danger regime overlay."""
         fig = plt.figure(figsize=(14, 9))
         gs = gridspec.GridSpec(5, 1, height_ratios=[1, 1, 1, 1, 2], hspace=0.25)
@@ -368,13 +383,19 @@ class TEARSHEET:
 
         plt.suptitle("Strategy Positions Over Time (heatmap) + Regime Overlay",
                      fontweight='bold', fontsize=13, y=0.995)
+        save_figure_pdf(
+            fig,
+            filename or pdf_filename(self.pdf_prefix, "positions_and_regimes"),
+            pdf_dir=pdf_dir or self.pdf_dir,
+            enabled=self.save_pdf if save_pdf is None else save_pdf,
+        )
         plt.show()
 
     # ------------------------------------------------------------------
     # Markov dynamics (unchanged from yours — small polish)
     # ------------------------------------------------------------------
 
-    def plot_markov_dynamics(self):
+    def plot_markov_dynamics(self, save_pdf=None, pdf_dir=None, filename=None):
         if self.params is None or 'Safe_Mean' not in self.params.columns:
             print("Markov parameters not found in df_params.")
             return
@@ -415,4 +436,10 @@ class TEARSHEET:
         ax3.grid(True, alpha=0.3)
 
         plt.tight_layout()
+        save_figure_pdf(
+            fig,
+            filename or pdf_filename(self.pdf_prefix, "markov_dynamics"),
+            pdf_dir=pdf_dir or self.pdf_dir,
+            enabled=self.save_pdf if save_pdf is None else save_pdf,
+        )
         plt.show()
