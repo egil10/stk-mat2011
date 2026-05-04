@@ -1,7 +1,10 @@
 from pathlib import Path
 
+import matplotlib as mpl
+
 
 DEFAULT_DRIVE_ROOT = Path("/content/drive/MyDrive/GITHUB-COPILOT/stk-mat2011")
+DEFAULT_PDF_DPI = 180
 
 
 def default_pdf_dir():
@@ -19,7 +22,21 @@ def pdf_filename(prefix, plot_name):
     return f"{safe_plot_name}.pdf"
 
 
-def save_figure_pdf(fig, filename, pdf_dir=None, enabled=False):
+def rasterize_heavy_artists(fig):
+    """Keep text/vector axes sharp while making dense plot data cheap for LaTeX."""
+    for ax in fig.axes:
+        for artist in [*ax.lines, *ax.collections]:
+            artist.set_rasterized(True)
+
+
+def save_figure_pdf(
+    fig,
+    filename,
+    pdf_dir=None,
+    enabled=False,
+    rasterize=True,
+    dpi=DEFAULT_PDF_DPI,
+):
     if not enabled:
         return None
 
@@ -30,6 +47,16 @@ def save_figure_pdf(fig, filename, pdf_dir=None, enabled=False):
     if output_path.suffix.lower() != ".pdf":
         output_path = output_path.with_suffix(".pdf")
 
-    fig.savefig(output_path, format="pdf", bbox_inches="tight")
+    if rasterize:
+        rasterize_heavy_artists(fig)
+
+    with mpl.rc_context({
+        "pdf.compression": 9,
+        "path.simplify": True,
+        "path.simplify_threshold": 1.0,
+        "agg.path.chunksize": 10000,
+    }):
+        fig.savefig(output_path, format="pdf", bbox_inches="tight", dpi=dpi)
+
     print(f"Saved plot PDF: {output_path}")
     return output_path
