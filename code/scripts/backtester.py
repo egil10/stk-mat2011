@@ -66,6 +66,11 @@ class BACKTESTER:
             self.data[f'Return_{strat}'] = (self.data[f'Target_{strat}'] * self.data['Spread_Return']) - flat_costs - slip_costs
             self.data[f'CumReturn_{strat}'] = self.data[f'Return_{strat}'].cumsum()
 
+        # --- Buy-and-Hold Spread: always long the spread, no timing ---
+        self.data['Target_BuyHold'] = 1.0
+        self.data['Return_BuyHold'] = self.data['Spread_Return']
+        self.data['CumReturn_BuyHold'] = self.data['Return_BuyHold'].cumsum()
+
         self.data['Return_Cash'] = 0.0
         self.data['CumReturn_Cash'] = 0.0
         return self.data

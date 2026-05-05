@@ -22,6 +22,7 @@ class TEARSHEET:
     """
 
     COLORS = {
+        'BuyHold':  '#e67e22',
         'Baseline': '#808080',
         'AR':       '#1f77b4',
         'MS_AR':    '#8856a7',
@@ -31,7 +32,7 @@ class TEARSHEET:
                  save_pdf=False, pdf_dir=None, pdf_prefix="tearsheet"):
         self.df = df_results.copy()
         self.params = df_params
-        self.strats = ['Baseline', 'AR', 'MS_AR']
+        self.strats = ['BuyHold', 'Baseline', 'AR', 'MS_AR']
         self.save_pdf = save_pdf
         self.pdf_dir = pdf_dir
         self.pdf_prefix = pdf_prefix
