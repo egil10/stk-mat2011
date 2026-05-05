@@ -147,8 +147,10 @@ class ENGINE:
 
         self.data['MR_Prob'] = mr_prob
 
-        # --- Regime-conditional z-score: (z_t - mu^MR) / sigma^MR ---
-        self.data['Regime_Z'] = (self.data['Spread_Level'] - self.mr_mu) / self.mr_sigma
+        # --- Regime-conditional z-score: (z_t - mu^MR) / sigma_unconditional ---
+        # Unconditional std of AR(1): sigma / sqrt(1 - rho^2)
+        self.mr_sigma_uncond = self.mr_sigma / np.sqrt(max(1 - self.mr_rho**2, 1e-6))
+        self.data['Regime_Z'] = (self.data['Spread_Level'] - self.mr_mu) / self.mr_sigma_uncond
 
         return self.data
 
@@ -177,8 +179,8 @@ class ENGINE:
         roll_std = combined_spread.rolling(window=z_window).std()
         test_data['Z_Score'] = ((combined_spread - roll_mean) / roll_std).loc[test_data.index]
 
-        # --- Regime-conditional z-score ---
-        test_data['Regime_Z'] = (test_data['Spread_Level'] - self.mr_mu) / self.mr_sigma
+        # --- Regime-conditional z-score (unconditional sigma) ---
+        test_data['Regime_Z'] = (test_data['Spread_Level'] - self.mr_mu) / self.mr_sigma_uncond
 
         # --- OOS regime probability via AR(1) likelihoods ---
         # p(z_t | z_{t-1}, regime=k) = N(const^k + rho^k * z_{t-1}, sigma^k)
