@@ -21,33 +21,60 @@ def _generate_positions(z_scores, entry_z, exit_z, signals_allowed):
         pos[i] = curr
     return pos
 
+
+def _positions_daily(z_scores, entry_z, exit_z, signals_allowed, day_ids):
+    """Run _generate_positions independently per day. Each day starts flat, ends flat."""
+    pos = np.zeros(len(z_scores))
+    for d in np.unique(day_ids):
+        mask = day_ids == d
+        idx = np.where(mask)[0]
+        z_day = z_scores[idx]
+        allow_day = signals_allowed[idx]
+        pos_day = _generate_positions(z_day, entry_z, exit_z, allow_day)
+        pos_day[-1] = 0  # force flatten at EOD
+        pos[idx] = pos_day
+    return pos
+
+
 class BACKTESTER:
     def __init__(self, df):
         self.data = df.copy()
 
-    def run(self, base_z, exit_z, danger_threshold, fee_bps=0.5, slippage_mode='half_spread', **kwargs):
+    def run(self, base_z, exit_z, danger_threshold, fee_bps=0.5,
+            slippage_mode='half_spread', flatten_eod=False, **kwargs):
         """
-        Three strategy tiers:
+        Four strategy tiers:
+          BuyHold  – always long the spread (passive benchmark)
           Baseline – rolling z-score, always allowed (no HMM)
-          AR       – regime z-score, hard-gated by P(MR) > (1 - danger_threshold)
-          MS_AR    – regime z-score, soft-scaled by P(MR)   [spec's recommended version]
+          AR       – rolling z-score, hard-gated by P(MR) > (1 - danger_threshold)
+          MS_AR    – rolling z-score, soft-scaled by P(MR)
+
+        If flatten_eod=True, each calendar day is treated independently:
+        positions start flat and are forced to zero at end of day.
         """
 
-        z_scores  = self.data['Z_Score'].values          # rolling z (all strategies)
-        mr_probs  = self.data['MR_Prob'].values           # P(mean-reverting regime)
+        z_scores  = self.data['Z_Score'].values
+        mr_probs  = self.data['MR_Prob'].values
 
         base_allowed = np.ones(len(self.data), dtype=np.bool_)
+        hard_allowed = np.where(np.isfinite(mr_probs), mr_probs >= (1.0 - danger_threshold), False)
+
+        # Choose position generator based on daily reset mode
+        if flatten_eod:
+            day_ids = pd.Categorical(self.data.index.date).codes.astype(np.int64)
+            gen = lambda z, ez, xz, sa: _positions_daily(z, ez, xz, sa, day_ids)
+        else:
+            gen = _generate_positions
 
         # --- Baseline: rolling z-score, no regime filter ---
-        pos_base = _generate_positions(z_scores, base_z, exit_z, base_allowed)
+        pos_base = gen(z_scores, base_z, exit_z, base_allowed)
 
         # --- AR (Hard HMM): rolling z-score, trade only when P(MR) is high ---
-        hard_allowed = np.where(np.isfinite(mr_probs), mr_probs >= (1.0 - danger_threshold), False)
-        pos_ar = _generate_positions(z_scores, base_z, exit_z, hard_allowed)
+        pos_ar = gen(z_scores, base_z, exit_z, hard_allowed)
 
         # --- MS_AR (Soft HMM): rolling z-score, positions scaled by P(MR) ---
-        pos_ms_ar_raw = _generate_positions(z_scores, base_z, exit_z, base_allowed)
-        pos_ms_ar = pos_ms_ar_raw * mr_probs  # soft scaling per the spec
+        pos_ms_ar_raw = gen(z_scores, base_z, exit_z, base_allowed)
+        pos_ms_ar = pos_ms_ar_raw * mr_probs
 
         self.data['Target_Baseline'] = pd.Series(pos_base, index=self.data.index).shift(1).fillna(0)
         self.data['Target_AR'] = pd.Series(pos_ar, index=self.data.index).shift(1).fillna(0)

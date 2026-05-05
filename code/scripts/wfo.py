@@ -10,13 +10,15 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 
 class WFO:
-    def __init__(self, engine_data):
+    def __init__(self, engine_data, flatten_eod=False):
         """
         engine_data: The output from ENGINE.walk_forward()
+        flatten_eod: If True, positions reset each calendar day (no overnight carry)
         """
         self.data = engine_data.copy()
         self.data['Date'] = self.data.index.date
         self.unique_days = sorted(self.data['Date'].unique())
+        self.flatten_eod = flatten_eod
 
     def _objective(self, trial, train_data):
         entry_z          = trial.suggest_float("entry_z", 1.0, 2.5, step=0.1)
@@ -27,7 +29,8 @@ class WFO:
         results = bt.run(
             base_z=entry_z, exit_z=exit_z,
             danger_threshold=danger_threshold,
-            fee_bps=0.5, slippage_mode='half_spread'
+            fee_bps=0.5, slippage_mode='half_spread',
+            flatten_eod=self.flatten_eod,
         )
 
         returns = results['Return_MS_AR'].fillna(0)
@@ -85,6 +88,7 @@ class WFO:
                 exit_z=best['exit_z'],
                 danger_threshold=best['danger_threshold'],
                 fee_bps=0.5, slippage_mode='half_spread',
+                flatten_eod=self.flatten_eod,
             )
 
             all_oos_results.append(oos_results)
