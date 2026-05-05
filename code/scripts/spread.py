@@ -9,9 +9,9 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
 try:
-    from plotting_utils import pdf_filename, save_figure_pdf
+    from plotting_utils import pdf_filename, save_figure_pdf, ECON, COL_A, COL_B, apply_econ_style
 except ImportError:
-    from .plotting_utils import pdf_filename, save_figure_pdf
+    from .plotting_utils import pdf_filename, save_figure_pdf, ECON, COL_A, COL_B, apply_econ_style
 
 class SPREAD:
     """
@@ -170,6 +170,7 @@ class SPREAD:
         if self.data is None or self.data.empty:
             raise ValueError("Data has not been built yet. Please run .build() first.")
 
+        apply_econ_style()
         df = self.data.copy()
 
         # Calculate a static OLS spread for diagnostic plotting
@@ -187,53 +188,53 @@ class SPREAD:
 
         # --- Panel 1: Time Series of Assets (Shared X-axis but Twin Y-axis) ---
         ax1 = fig.add_subplot(gs[0, :])
-        l1, = ax1.plot(df.index, df['Asset_A'], color='tab:blue', alpha=0.8, label='Asset A')
-        ax1.set_ylabel('Asset A Price', color='tab:blue')
+        l1, = ax1.plot(df.index, df['Asset_A'], color=COL_A, alpha=0.8, label='Asset A')
+        ax1.set_ylabel('Asset A Price', color=COL_A)
         
         ax1_twin = ax1.twinx()
-        l2, = ax1_twin.plot(df.index, df['Asset_B'], color='tab:orange', alpha=0.8, label='Asset B')
-        ax1_twin.set_ylabel('Asset B Price', color='tab:orange')
+        l2, = ax1_twin.plot(df.index, df['Asset_B'], color=COL_B, alpha=0.8, label='Asset B')
+        ax1_twin.set_ylabel('Asset B Price', color=COL_B)
         
         ax1.set_title('Asset Prices (Time Series)', fontweight='bold')
         ax1.legend(handles=[l1, l2], loc='upper left')
 
         # --- Panel 2: Spread Time Series ---
         ax2 = fig.add_subplot(gs[1, :])
-        ax2.plot(spread.index, spread, color='tab:purple', alpha=0.9)
-        ax2.axhline(spread.mean(), color='black', linestyle='--', alpha=0.5)
+        ax2.plot(spread.index, spread, color=ECON['purple'], alpha=0.9)
+        ax2.axhline(spread.mean(), color=ECON['navy'], linestyle='--', alpha=0.5)
         ax2.set_title(f'Log Spread (Log A - {beta:.3f} * Log B)', fontweight='bold')
         ax2.set_ylabel('Spread Level')
 
         # --- Panel 3: Returns Time Series ---
         ax3 = fig.add_subplot(gs[2, :])
-        ax3.plot(df.index, df['Return_A'], color='tab:blue', alpha=0.6, label='Return A')
-        ax3.plot(df.index, df['Return_B'], color='tab:orange', alpha=0.6, label='Return B')
+        ax3.plot(df.index, df['Return_A'], color=COL_A, alpha=0.6, label='Return A')
+        ax3.plot(df.index, df['Return_B'], color=COL_B, alpha=0.6, label='Return B')
         ax3.set_title('Asset Returns', fontweight='bold')
         ax3.set_ylabel('Log Returns')
         ax3.legend(loc='upper left')
 
         # --- Panel 4: Spread Returns ---
         ax4 = fig.add_subplot(gs[3, :])
-        ax4.plot(spread_returns.index, spread_returns, color='tab:green', alpha=0.8)
+        ax4.plot(spread_returns.index, spread_returns, color=ECON['green'], alpha=0.8)
         ax4.set_title('Spread Returns', fontweight='bold')
         ax4.set_ylabel('Returns')
 
         # --- Panel 5: Histograms (Log Scale to expose Fat Tails) ---
         # Histogram A
         ax5a = fig.add_subplot(gs[4, 0])
-        ax5a.hist(df['Return_A'].dropna(), bins=75, color='tab:blue', alpha=0.7, log=True)
+        ax5a.hist(df['Return_A'].dropna(), bins=75, color=COL_A, alpha=0.7, log=True)
         ax5a.set_title('Return A Dist (Log Scale)')
         ax5a.set_ylabel('Frequency (log)')
         
         # Histogram B
         ax5b = fig.add_subplot(gs[4, 1])
-        ax5b.hist(df['Return_B'].dropna(), bins=75, color='tab:orange', alpha=0.7, log=True)
+        ax5b.hist(df['Return_B'].dropna(), bins=75, color=COL_B, alpha=0.7, log=True)
         ax5b.set_title('Return B Dist (Log Scale)')
         
         # Histogram Spread (Level)
         ax5c = fig.add_subplot(gs[4, 2])
-        ax5c.hist(spread.dropna(), bins=75, color='tab:purple', alpha=0.7, log=True)
-        ax5c.axvline(spread.mean(), color='black', linestyle='dashed', linewidth=1.5)
+        ax5c.hist(spread.dropna(), bins=75, color=ECON['purple'], alpha=0.7, log=True)
+        ax5c.axvline(spread.mean(), color=ECON['navy'], linestyle='dashed', linewidth=1.5)
         ax5c.set_title('Spread Level Dist (Log Scale)')
 
         save_figure_pdf(

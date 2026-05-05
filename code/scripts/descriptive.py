@@ -7,9 +7,9 @@ from scipy import stats
 from scipy.stats import skew, kurtosis
 
 try:
-    from plotting_utils import pdf_filename, save_figure_pdf
+    from plotting_utils import pdf_filename, save_figure_pdf, ECON, COL_A, COL_B, apply_econ_style
 except ImportError:
-    from .plotting_utils import pdf_filename, save_figure_pdf
+    from .plotting_utils import pdf_filename, save_figure_pdf, ECON, COL_A, COL_B, apply_econ_style
 
 
 class DESCRIPTIVE:
@@ -180,11 +180,12 @@ class DESCRIPTIVE:
     # =================================================================
 
     def _plot_everything(self, save_pdf=None, pdf_dir=None, filename=None):
+        apply_econ_style()
         fig = plt.figure(figsize=(16, 22))
         gs = gridspec.GridSpec(7, 2, hspace=0.6, wspace=0.3,
                                height_ratios=[1, 1, 1, 1, 1, 1, 1])
 
-        col_a, col_b = '#1f77b4', '#ff7f0e'
+        col_a, col_b = COL_A, COL_B
         BPS = 10000
 
         # ---- Row 0: Hourly spread + Hourly volatility ----
@@ -258,8 +259,8 @@ class DESCRIPTIVE:
 
         ax = fig.add_subplot(gs[3, 1])
         roll_corr = self.df['Return_A'].rolling(500).corr(self.df['Return_B'])
-        ax.plot(self.df.index, roll_corr, color='#2ca02c', lw=0.9)
-        ax.axhline(roll_corr.median(), color='black', ls='--', lw=1, label=f'Median {roll_corr.median():.2f}')
+        ax.plot(self.df.index, roll_corr, color=ECON['green'], lw=0.9)
+        ax.axhline(roll_corr.median(), color=ECON['navy'], ls='--', lw=1, label=f'Median {roll_corr.median():.2f}')
         ax.set_title(f"Rolling 500-bar Correlation ({self.name_a}, {self.name_b})", fontweight='bold')
         ax.set_ylabel("ρ")
         ax.set_ylim(-1.05, 1.05)
@@ -294,11 +295,11 @@ class DESCRIPTIVE:
         idx = np.random.default_rng(0).choice(len(ra_bps), size=min(5000, len(ra_bps)), replace=False)
         ra_s = ra_bps.iloc[idx] if hasattr(ra_bps, 'iloc') else ra_bps[idx]
         rb_s = rb_bps.iloc[idx] if hasattr(rb_bps, 'iloc') else rb_bps[idx]
-        ax.scatter(ra_s, rb_s, s=3, alpha=0.25, color='#333')
+        ax.scatter(ra_s, rb_s, s=3, alpha=0.25, color=ECON['grey'])
         if len(ra_s) > 2:
             m, b = np.polyfit(ra_s, rb_s, 1)
             xline = np.linspace(ra_s.min(), ra_s.max(), 50)
-            ax.plot(xline, m*xline + b, color='red', lw=1.5, label=f'β={m:.2f}')
+            ax.plot(xline, m*xline + b, color=ECON['red'], lw=1.5, label=f'β={m:.2f}')
             ax.legend(fontsize=8)
         ax.set_title(f"Return Scatter ({self.name_a} vs {self.name_b})", fontweight='bold')
         ax.set_xlabel(f"{self.name_a} (bps)")
@@ -311,8 +312,8 @@ class DESCRIPTIVE:
         acf_sq = [ra.pow(2).autocorr(l) for l in lags]
         acf_rn = [ra.autocorr(l) for l in lags]
         ax.bar(lags - 0.2, acf_rn, width=0.4, color=col_a, alpha=0.7, label='Returns')
-        ax.bar(lags + 0.2, acf_sq, width=0.4, color='#d62728', alpha=0.7, label='Squared Returns')
-        ax.axhline(0, color='black', lw=0.8)
+        ax.bar(lags + 0.2, acf_sq, width=0.4, color=ECON['red'], alpha=0.7, label='Squared Returns')
+        ax.axhline(0, color=ECON['navy'], lw=0.8)
         ci = 1.96 / np.sqrt(len(ra))
         ax.axhline(ci, color='black', ls='--', lw=0.8, alpha=0.5)
         ax.axhline(-ci, color='black', ls='--', lw=0.8, alpha=0.5)
@@ -326,8 +327,8 @@ class DESCRIPTIVE:
         ax = fig.add_subplot(gs[6, 0])
         rv = roll_vol_a.dropna()
         ax.hist(rv, bins=60, color=col_a, alpha=0.7, density=True)
-        ax.axvline(rv.median(), color='black', ls='--', lw=1.2, label=f'Median {rv.median():.1f}')
-        ax.axvline(rv.quantile(0.95), color='red', ls='--', lw=1.2, label=f'P95 {rv.quantile(0.95):.1f}')
+        ax.axvline(rv.median(), color=ECON['navy'], ls='--', lw=1.2, label=f'Median {rv.median():.1f}')
+        ax.axvline(rv.quantile(0.95), color=ECON['red'], ls='--', lw=1.2, label=f'P95 {rv.quantile(0.95):.1f}')
         ax.set_title(f"Rolling Vol Distribution — {self.name_a}", fontweight='bold')
         ax.set_xlabel("Vol (bps)")
         ax.set_ylabel("Density")

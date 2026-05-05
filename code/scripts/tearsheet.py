@@ -8,9 +8,9 @@ from matplotlib.colors import LinearSegmentedColormap
 from scipy import stats
 
 try:
-    from plotting_utils import pdf_filename, save_figure_pdf
+    from plotting_utils import pdf_filename, save_figure_pdf, ECON, apply_econ_style
 except ImportError:
-    from .plotting_utils import pdf_filename, save_figure_pdf
+    from .plotting_utils import pdf_filename, save_figure_pdf, ECON, apply_econ_style
 
 
 class TEARSHEET:
@@ -22,14 +22,15 @@ class TEARSHEET:
     """
 
     COLORS = {
-        'BuyHold':  '#e67e22',
-        'Baseline': '#808080',
-        'AR':       '#1f77b4',
-        'MS_AR':    '#8856a7',
+        'BuyHold':  ECON['BuyHold'],
+        'Baseline': ECON['Baseline'],
+        'AR':       ECON['AR'],
+        'MS_AR':    ECON['MS_AR'],
     }
 
     def __init__(self, df_results, df_params=None,
                  save_pdf=False, pdf_dir=None, pdf_prefix="tearsheet"):
+        apply_econ_style()
         self.df = df_results.copy()
         self.params = df_params
         self.strats = ['BuyHold', 'Baseline', 'AR', 'MS_AR']
@@ -41,6 +42,8 @@ class TEARSHEET:
         for s in self.strats:
             if f'Return_{s}' in self.df.columns:
                 self.df[f'CumReturn_{s}'] = self.df[f'Return_{s}'].fillna(0).cumsum()
+            if f'Return_{s}_Gross' in self.df.columns:
+                self.df[f'CumReturn_{s}_Gross'] = self.df[f'Return_{s}_Gross'].fillna(0).cumsum()
 
     # ------------------------------------------------------------------
     # Metrics
@@ -152,6 +155,23 @@ class TEARSHEET:
             "Kurtosis":                kurt,
         }
 
+        # Add cost impact if gross returns exist
+        gross_col = f'Return_{strat}_Gross'
+        if gross_col in self.df.columns:
+            rg = self.df[gross_col].fillna(0)
+            gross_tot = rg.sum() * BPS
+            gross_ann = rg.mean() * ann_factor * BPS
+            gross_vol = rg.std() * np.sqrt(ann_factor) * BPS
+            gross_sharpe = gross_ann / gross_vol if gross_vol else 0
+            cost_drag = gross_tot - tot_ret
+
+            out["--- COSTS ---"] = ""
+            out["Gross Total (bps)"] = gross_tot
+            out["Gross Sharpe"] = gross_sharpe
+            out["Cost Drag (bps)"] = cost_drag
+
+        return out
+
     def generate_report(self):
         if isinstance(self.df.index, pd.DatetimeIndex):
             n_days = max((self.df.index.max() - self.df.index.min()).days, 1)
@@ -190,6 +210,47 @@ class TEARSHEET:
                     row += f" {v:<14.2f} |"
             print(row)
         print("=" * 85 + "\n")
+
+    # ------------------------------------------------------------------
+    # Cost impact plot: gross vs net equity curves
+    # ------------------------------------------------------------------
+
+    def plot_cost_impact(self, save_pdf=None, pdf_dir=None, filename=None):
+        """Side-by-side gross (dashed) vs net (solid) equity curves per strategy."""
+        active = [s for s in self.strats
+                  if f'Return_{s}_Gross' in self.df.columns and s != 'BuyHold']
+        BPS = 10000
+
+        fig, axes = plt.subplots(len(active), 1, figsize=(14, 4 * len(active)),
+                                 sharex=True)
+        if len(active) == 1:
+            axes = [axes]
+
+        for ax, s in zip(axes, active):
+            cum_net   = self.df[f'Return_{s}'].fillna(0).cumsum() * BPS
+            cum_gross = self.df[f'Return_{s}_Gross'].fillna(0).cumsum() * BPS
+            cost_cum  = (cum_gross - cum_net)
+
+            ax.plot(self.df.index, cum_gross, color=self.COLORS[s],
+                    ls='--', lw=1.3, alpha=0.8, label=f'{s} Gross')
+            ax.plot(self.df.index, cum_net, color=self.COLORS[s],
+                    ls='-', lw=1.5, label=f'{s} Net')
+            ax.fill_between(self.df.index, cum_net, cum_gross,
+                            color=ECON['coral'], alpha=0.2, label='Cost drag')
+            ax.axhline(0, color=ECON['navy'], lw=0.8, alpha=0.5)
+            ax.set_ylabel('Cumulative PnL (bps)')
+            ax.set_title(f'{s}: Gross vs Net Returns', fontweight='bold')
+            ax.legend(loc='upper left', fontsize=9)
+
+        plt.suptitle('Transaction Cost Impact', fontsize=14, fontweight='bold', y=1.01)
+        plt.tight_layout()
+        save_figure_pdf(
+            fig,
+            filename or pdf_filename(self.pdf_prefix, "cost_impact"),
+            pdf_dir=pdf_dir or self.pdf_dir,
+            enabled=self.save_pdf if save_pdf is None else save_pdf,
+        )
+        plt.show()
 
     # ------------------------------------------------------------------
     # Main performance plot (fixed cumulative + richer panels)
