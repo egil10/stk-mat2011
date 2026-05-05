@@ -25,20 +25,30 @@ class BACKTESTER:
     def __init__(self, df):
         self.data = df.copy()
 
-    # All parameters exposed here for dynamic calling
-    def run(self, base_z, exit_z, danger_threshold, ar_limit, fee_bps=0.5, slippage_mode='half_spread'):
-        
-        z_scores = self.data['Z_Score'].values
-        ar_phi = self.data['AR_Phi'].values
-        danger_probs = self.data['Danger_Regime_Prob'].values
-        
-        base_allowed = np.ones(len(self.data), dtype=np.bool_)
-        ar_allowed = np.where(np.isfinite(ar_phi), ar_phi < ar_limit, False)
-        ms_ar_allowed = ar_allowed & (danger_probs <= danger_threshold)
+    def run(self, base_z, exit_z, danger_threshold, fee_bps=0.5, slippage_mode='half_spread', **kwargs):
+        """
+        Three strategy tiers:
+          Baseline – rolling z-score, always allowed (no HMM)
+          AR       – regime z-score, hard-gated by P(MR) > (1 - danger_threshold)
+          MS_AR    – regime z-score, soft-scaled by P(MR)   [spec's recommended version]
+        """
 
+        z_scores  = self.data['Z_Score'].values          # rolling z (baseline)
+        regime_z  = self.data['Regime_Z'].values          # regime-conditional z (HMM)
+        mr_probs  = self.data['MR_Prob'].values           # P(mean-reverting regime)
+
+        base_allowed = np.ones(len(self.data), dtype=np.bool_)
+
+        # --- Baseline: rolling z-score, no regime filter ---
         pos_base = _generate_positions(z_scores, base_z, exit_z, base_allowed)
-        pos_ar = _generate_positions(z_scores, base_z, exit_z, ar_allowed)
-        pos_ms_ar = _generate_positions(z_scores, base_z, exit_z, ms_ar_allowed)
+
+        # --- AR (Hard HMM): regime z-score, trade only when P(MR) is high ---
+        hard_allowed = np.where(np.isfinite(mr_probs), mr_probs >= (1.0 - danger_threshold), False)
+        pos_ar = _generate_positions(regime_z, base_z, exit_z, hard_allowed)
+
+        # --- MS_AR (Soft HMM): regime z-score, positions scaled by P(MR) ---
+        pos_ms_ar_raw = _generate_positions(regime_z, base_z, exit_z, base_allowed)
+        pos_ms_ar = pos_ms_ar_raw * mr_probs  # soft scaling per the spec
 
         self.data['Target_Baseline'] = pd.Series(pos_base, index=self.data.index).shift(1).fillna(0)
         self.data['Target_AR'] = pd.Series(pos_ar, index=self.data.index).shift(1).fillna(0)

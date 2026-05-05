@@ -21,13 +21,12 @@ class WFO:
     def _objective(self, trial, train_data):
         entry_z          = trial.suggest_float("entry_z", 1.0, 2.5, step=0.1)
         exit_z           = trial.suggest_float("exit_z", -0.5, 0.5, step=0.1)
-        danger_threshold = trial.suggest_float("danger_threshold", 0.50, 0.95, step=0.05)
-        ar_limit         = trial.suggest_float("ar_limit", 0.85, 0.99, step=0.01)
+        danger_threshold = trial.suggest_float("danger_threshold", 0.05, 0.50, step=0.05)
 
         bt = BACKTESTER(train_data)
         results = bt.run(
             base_z=entry_z, exit_z=exit_z,
-            danger_threshold=danger_threshold, ar_limit=ar_limit,
+            danger_threshold=danger_threshold,
             fee_bps=0.5, slippage_mode='half_spread'
         )
 
@@ -56,7 +55,7 @@ class WFO:
             print(f"  Trials:   {n_trials} per window")
             print(f"  Period:   {windows[0][1][0]} → {windows[-1][1][-1]}")
             print()
-            header = f"{'#':>3}  {'Test window':<25}  {'Best Sharpe':>12}  {'Entry Z':>8}  {'Exit Z':>7}  {'Danger':>7}  {'AR lim':>7}  {'OOS ret':>10}"
+            header = f"{'#':>3}  {'Test window':<25}  {'Best Sharpe':>12}  {'Entry Z':>8}  {'Exit Z':>7}  {'Danger':>7}  {'OOS ret':>10}"
             print(header)
             print("-" * len(header))
 
@@ -85,7 +84,6 @@ class WFO:
                 base_z=best['entry_z'],
                 exit_z=best['exit_z'],
                 danger_threshold=best['danger_threshold'],
-                ar_limit=best['ar_limit'],
                 fee_bps=0.5, slippage_mode='half_spread',
             )
 
@@ -98,7 +96,7 @@ class WFO:
                     f"{idx:>3}  {window_str:<25}  "
                     f"{study.best_value:>12.3f}  "
                     f"{best['entry_z']:>8.2f}  {best['exit_z']:>7.2f}  "
-                    f"{best['danger_threshold']:>7.2f}  {best['ar_limit']:>7.3f}  "
+                    f"{best['danger_threshold']:>7.2f}  "
                     f"{oos_ret:>10.4f}"
                 )
                 tqdm.write(row) if hasattr(iterator, 'write') else print(row)
