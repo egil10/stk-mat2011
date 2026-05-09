@@ -108,13 +108,12 @@ class ENGINE:
                    for i in range(k_regimes)]
         sigmas = [np.sqrt(v) for v in variances]
 
-        # --- Classify regimes by mean-reversion speed |rho^k| ---
-        abs_rho = [abs(r) for r in ar_coeffs]
-        mr_idx = int(np.argmin(abs_rho))  # fastest mean-reversion
-
-        # For k=2 the other is drifting; for k=3 pick the slowest
+        # --- Classify regimes strictly by Volatility (sigma) ---
+        # Quiet (Safe) = lowest variance, Volatile (Danger) = highest variance
+        mr_idx = int(np.argmin(sigmas))  
+        
         non_mr = [j for j in range(k_regimes) if j != mr_idx]
-        dr_idx = int(non_mr[np.argmax([abs_rho[j] for j in non_mr])])
+        dr_idx = int(non_mr[np.argmax([sigmas[j] for j in non_mr])])
 
         # Store per-regime parameters
         self.mr_mu, self.mr_sigma, self.mr_rho = means[mr_idx], sigmas[mr_idx], ar_coeffs[mr_idx]

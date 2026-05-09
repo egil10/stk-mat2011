@@ -21,13 +21,14 @@ class WFO:
         self.flatten_eod = flatten_eod
 
     def _objective(self, trial, train_data):
-        entry_z          = trial.suggest_float("entry_z", 1.0, 2.5, step=0.1)
+        z_quiet          = trial.suggest_float("z_quiet", 1.0, 2.0, step=0.1)
+        z_volatile       = trial.suggest_float("z_volatile", 2.0, 3.5, step=0.1)
         exit_z           = trial.suggest_float("exit_z", -0.5, 0.5, step=0.1)
         danger_threshold = trial.suggest_float("danger_threshold", 0.05, 0.50, step=0.05)
 
         bt = BACKTESTER(train_data)
         results = bt.run(
-            base_z=entry_z, exit_z=exit_z,
+            z_quiet=z_quiet, z_volatile=z_volatile, exit_z=exit_z,
             danger_threshold=danger_threshold,
             fee_bps=0.5, slippage_mode='half_spread',
             flatten_eod=self.flatten_eod,
@@ -84,13 +85,13 @@ class WFO:
             # Apply OOS
             bt_oos = BACKTESTER(test_data)
             oos_results = bt_oos.run(
-                base_z=best['entry_z'],
+                z_quiet=best['z_quiet'],
+                z_volatile=best['z_volatile'],
                 exit_z=best['exit_z'],
                 danger_threshold=best['danger_threshold'],
                 fee_bps=0.5, slippage_mode='half_spread',
                 flatten_eod=self.flatten_eod,
             )
-
             all_oos_results.append(oos_results)
 
             if verbose:

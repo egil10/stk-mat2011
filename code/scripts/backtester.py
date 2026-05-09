@@ -6,40 +6,39 @@ import optuna
 from tqdm.auto import tqdm
 
 @njit
-def _generate_positions(z_scores, entry_z, exit_z, signals_allowed):
+def _generate_positions(z_scores, entry_z_arr, exit_z, signals_allowed):
     n = len(z_scores)
     pos = np.zeros(n)
-    curr = 0.0  # Use float to support scaling later
+    curr = 0.0  
     for i in range(n):
         if np.isnan(z_scores[i]):
             pos[i] = curr
             continue
             
-        # FIX 1: THE PANIC BUTTON
-        # If we are in a trade but the regime suddenly breaks, liquidate immediately
+        # Hard kill-switch (Used primarily by the AR bot)
         if curr != 0.0 and not signals_allowed[i]:
             curr = 0.0
             
         if curr == 0.0:
             if signals_allowed[i]:
-                if z_scores[i] < -entry_z: curr = 1.0
-                elif z_scores[i] > entry_z: curr = -1.0
+                # Now checks against the dynamic array threshold
+                if z_scores[i] < -entry_z_arr[i]: curr = 1.0
+                elif z_scores[i] > entry_z_arr[i]: curr = -1.0
         elif curr == 1.0 and z_scores[i] >= -exit_z: curr = 0.0
         elif curr == -1.0 and z_scores[i] <= exit_z: curr = 0.0
         
         pos[i] = curr
     return pos
 
-def _positions_daily(z_scores, entry_z, exit_z, signals_allowed, day_ids):
-    """Run _generate_positions independently per day. Each day starts flat, ends flat."""
+def _positions_daily(z_scores, entry_z_arr, exit_z, signals_allowed, day_ids):
+    """Run _generate_positions independently per day."""
     pos = np.zeros(len(z_scores))
     for d in np.unique(day_ids):
         mask = day_ids == d
         idx = np.where(mask)[0]
-        z_day = z_scores[idx]
-        allow_day = signals_allowed[idx]
-        pos_day = _generate_positions(z_day, entry_z, exit_z, allow_day)
-        pos_day[-1] = 0  # force flatten at EOD
+        # Pass the sliced arrays to the Numba function
+        pos_day = _generate_positions(z_scores[idx], entry_z_arr[idx], exit_z, signals_allowed[idx])
+        pos_day[-1] = 0  
         pos[idx] = pos_day
     return pos
 
@@ -48,18 +47,21 @@ class BACKTESTER:
     def __init__(self, df):
         self.data = df.copy()
 
-    def run(self, base_z, exit_z, danger_threshold, fee_bps=0.5,
+    def run(self, z_quiet, z_volatile, exit_z, danger_threshold, fee_bps=0.5,
             slippage_mode='half_spread', flatten_eod=False, **kwargs):
 
         z_scores  = self.data['Z_Score'].values
 
-        # FIX: Apply a 3-day rolling median to smooth out the daily probability flickering
-        raw_probs = self.data['MR_Prob']
-        smoothed_probs = raw_probs.rolling(window=3).median().bfill()
-        mr_probs = smoothed_probs.values
+        # Smooth probabilities to prevent micro-jitters
+        mr_probs = self.data['MR_Prob'].rolling(window=3).median().bfill().values
+        danger_probs = self.data['Danger_Regime_Prob'].rolling(window=3).median().bfill().values
 
         base_allowed = np.ones(len(self.data), dtype=np.bool_)
         hard_allowed = np.where(np.isfinite(mr_probs), mr_probs >= (1.0 - danger_threshold), False)
+
+        # THE GEARBOX: Generate arrays for entry thresholds
+        static_entry_z = np.full(len(z_scores), z_quiet)
+        dynamic_entry_z = (mr_probs * z_quiet) + (danger_probs * z_volatile)
 
         if flatten_eod:
             day_ids = pd.Categorical(self.data.index.date).codes.astype(np.int64)
@@ -67,27 +69,14 @@ class BACKTESTER:
         else:
             gen = _generate_positions
 
-        # --- Baseline: rolling z-score, no regime filter ---
-        pos_base = gen(z_scores, base_z, exit_z, base_allowed)
+        # --- Baseline: static z-score, no regime filter ---
+        pos_base = gen(z_scores, static_entry_z, exit_z, base_allowed)
 
-        # --- AR (Hard HMM): rolling z-score, trade only when P(MR) is high ---
-        pos_ar = gen(z_scores, base_z, exit_z, hard_allowed)
+        # --- AR (Hard HMM): static z-score, hard kill-switch ---
+        pos_ar = gen(z_scores, static_entry_z, exit_z, hard_allowed)
 
-        # --- MS_AR (Soft HMM): rolling z-score, positions scaled by P(MR) ---
-        pos_ms_ar_raw = gen(z_scores, base_z, exit_z, base_allowed)
-        
-        # FIX 2: STEP-FUNCTION SCALING
-        # Instead of multiplying by raw probabilities (which causes daily fee bleed),
-        # we step-scale: 1.0 size if safe, 0.5 size if cautious, 0.0 if panic.
-        pos_ms_ar = pos_ms_ar_raw.copy()
-        
-        # Panic zone: force to 0
-        panic_mask = mr_probs < (1.0 - danger_threshold)
-        pos_ms_ar[panic_mask] = 0.0
-        
-        # Caution zone: cut in half
-        caution_mask = (mr_probs >= (1.0 - danger_threshold)) & (mr_probs < (1.0 - (danger_threshold / 2.0)))
-        pos_ms_ar[caution_mask] = pos_ms_ar_raw[caution_mask] * 0.5
+        # --- MS_AR (Dynamic Gearbox): soft-scaled z-score net, always allowed ---
+        pos_ms_ar = gen(z_scores, dynamic_entry_z, exit_z, base_allowed)
 
         # --- Target Assignments ---
         self.data['Target_Baseline'] = pd.Series(pos_base, index=self.data.index).shift(1).fillna(0)
