@@ -15,13 +15,13 @@ def _generate_positions(z_scores, entry_z_arr, exit_z, signals_allowed):
             pos[i] = curr
             continue
             
-        # Hard kill-switch (Used primarily by the AR bot)
+        # Panic Button (for the AR bot)
         if curr != 0.0 and not signals_allowed[i]:
             curr = 0.0
             
         if curr == 0.0:
             if signals_allowed[i]:
-                # Now checks against the dynamic array threshold
+                # KEY CHANGE: Compare against the array index [i]
                 if z_scores[i] < -entry_z_arr[i]: curr = 1.0
                 elif z_scores[i] > entry_z_arr[i]: curr = -1.0
         elif curr == 1.0 and z_scores[i] >= -exit_z: curr = 0.0
@@ -52,15 +52,18 @@ class BACKTESTER:
 
         z_scores  = self.data['Z_Score'].values
 
-        # Smooth probabilities to prevent micro-jitters
+        # 1. Smooth probabilities to prevent transaction cost bleed
         mr_probs = self.data['MR_Prob'].rolling(window=3).median().bfill().values
         danger_probs = self.data['Danger_Regime_Prob'].rolling(window=3).median().bfill().values
 
         base_allowed = np.ones(len(self.data), dtype=np.bool_)
         hard_allowed = np.where(np.isfinite(mr_probs), mr_probs >= (1.0 - danger_threshold), False)
 
-        # THE GEARBOX: Generate arrays for entry thresholds
+        # 2. THE GEARBOX: Generate arrays for entry thresholds
+        # Baseline and AR bots use the static "Quiet" Z
         static_entry_z = np.full(len(z_scores), z_quiet)
+        
+        # MS_AR blends them: If P(Danger) is high, the net widens to z_volatile
         dynamic_entry_z = (mr_probs * z_quiet) + (danger_probs * z_volatile)
 
         if flatten_eod:
@@ -69,14 +72,12 @@ class BACKTESTER:
         else:
             gen = _generate_positions
 
-        # --- Baseline: static z-score, no regime filter ---
-        pos_base = gen(z_scores, static_entry_z, exit_z, base_allowed)
-
-        # --- AR (Hard HMM): static z-score, hard kill-switch ---
-        pos_ar = gen(z_scores, static_entry_z, exit_z, hard_allowed)
-
-        # --- MS_AR (Dynamic Gearbox): soft-scaled z-score net, always allowed ---
+        # 3. Apply the dynamic array to MS_AR
+        pos_base  = gen(z_scores, static_entry_z, exit_z, base_allowed)
+        pos_ar    = gen(z_scores, static_entry_z, exit_z, hard_allowed)
         pos_ms_ar = gen(z_scores, dynamic_entry_z, exit_z, base_allowed)
+        
+        # ... rest of your PnL math remains the same
 
         # --- Target Assignments ---
         self.data['Target_Baseline'] = pd.Series(pos_base, index=self.data.index).shift(1).fillna(0)

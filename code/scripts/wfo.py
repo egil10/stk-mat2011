@@ -21,8 +21,9 @@ class WFO:
         self.flatten_eod = flatten_eod
 
     def _objective(self, trial, train_data):
+        # Hunt for two Z's instead of one
         z_quiet          = trial.suggest_float("z_quiet", 1.0, 2.0, step=0.1)
-        z_volatile       = trial.suggest_float("z_volatile", 2.0, 3.5, step=0.1)
+        z_volatile       = trial.suggest_float("z_volatile", 2.0, 4.5, step=0.1)
         exit_z           = trial.suggest_float("exit_z", -0.5, 0.5, step=0.1)
         danger_threshold = trial.suggest_float("danger_threshold", 0.05, 0.50, step=0.05)
 

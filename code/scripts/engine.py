@@ -110,7 +110,7 @@ class ENGINE:
 
         # --- Classify regimes strictly by Volatility (sigma) ---
         # Quiet (Safe) = lowest variance, Volatile (Danger) = highest variance
-        mr_idx = int(np.argmin(sigmas))  
+        mr_idx = int(np.argmin(sigmas)) 
         
         non_mr = [j for j in range(k_regimes) if j != mr_idx]
         dr_idx = int(non_mr[np.argmax([sigmas[j] for j in non_mr])])
