@@ -52,7 +52,11 @@ class BACKTESTER:
             slippage_mode='half_spread', flatten_eod=False, **kwargs):
 
         z_scores  = self.data['Z_Score'].values
-        mr_probs  = self.data['MR_Prob'].values
+
+        # FIX: Apply a 3-day rolling median to smooth out the daily probability flickering
+        raw_probs = self.data['MR_Prob']
+        smoothed_probs = raw_probs.rolling(window=3).median().bfill()
+        mr_probs = smoothed_probs.values
 
         base_allowed = np.ones(len(self.data), dtype=np.bool_)
         hard_allowed = np.where(np.isfinite(mr_probs), mr_probs >= (1.0 - danger_threshold), False)
