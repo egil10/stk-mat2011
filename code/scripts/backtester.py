@@ -1,26 +1,34 @@
 
+from numba import njit
 import numpy as np
 import pandas as pd
-from numba import njit
+import optuna
+from tqdm.auto import tqdm
 
 @njit
 def _generate_positions(z_scores, entry_z, exit_z, signals_allowed):
     n = len(z_scores)
     pos = np.zeros(n)
-    curr = 0
+    curr = 0.0  # Use float to support scaling later
     for i in range(n):
         if np.isnan(z_scores[i]):
             pos[i] = curr
             continue
-        if curr == 0:
+            
+        # FIX 1: THE PANIC BUTTON
+        # If we are in a trade but the regime suddenly breaks, liquidate immediately
+        if curr != 0.0 and not signals_allowed[i]:
+            curr = 0.0
+            
+        if curr == 0.0:
             if signals_allowed[i]:
-                if z_scores[i] < -entry_z: curr = 1
-                elif z_scores[i] > entry_z: curr = -1
-        elif curr == 1 and z_scores[i] >= -exit_z: curr = 0
-        elif curr == -1 and z_scores[i] <= exit_z: curr = 0
+                if z_scores[i] < -entry_z: curr = 1.0
+                elif z_scores[i] > entry_z: curr = -1.0
+        elif curr == 1.0 and z_scores[i] >= -exit_z: curr = 0.0
+        elif curr == -1.0 and z_scores[i] <= exit_z: curr = 0.0
+        
         pos[i] = curr
     return pos
-
 
 def _positions_daily(z_scores, entry_z, exit_z, signals_allowed, day_ids):
     """Run _generate_positions independently per day. Each day starts flat, ends flat."""
@@ -42,16 +50,6 @@ class BACKTESTER:
 
     def run(self, base_z, exit_z, danger_threshold, fee_bps=0.5,
             slippage_mode='half_spread', flatten_eod=False, **kwargs):
-        """
-        Four strategy tiers:
-          BuyHold  – always long the spread (passive benchmark)
-          Baseline – rolling z-score, always allowed (no HMM)
-          AR       – rolling z-score, hard-gated by P(MR) > (1 - danger_threshold)
-          MS_AR    – rolling z-score, soft-scaled by P(MR)
-
-        If flatten_eod=True, each calendar day is treated independently:
-        positions start flat and are forced to zero at end of day.
-        """
 
         z_scores  = self.data['Z_Score'].values
         mr_probs  = self.data['MR_Prob'].values
@@ -59,7 +57,6 @@ class BACKTESTER:
         base_allowed = np.ones(len(self.data), dtype=np.bool_)
         hard_allowed = np.where(np.isfinite(mr_probs), mr_probs >= (1.0 - danger_threshold), False)
 
-        # Choose position generator based on daily reset mode
         if flatten_eod:
             day_ids = pd.Categorical(self.data.index.date).codes.astype(np.int64)
             gen = lambda z, ez, xz, sa: _positions_daily(z, ez, xz, sa, day_ids)
@@ -74,8 +71,21 @@ class BACKTESTER:
 
         # --- MS_AR (Soft HMM): rolling z-score, positions scaled by P(MR) ---
         pos_ms_ar_raw = gen(z_scores, base_z, exit_z, base_allowed)
-        pos_ms_ar = pos_ms_ar_raw * mr_probs
+        
+        # FIX 2: STEP-FUNCTION SCALING
+        # Instead of multiplying by raw probabilities (which causes daily fee bleed),
+        # we step-scale: 1.0 size if safe, 0.5 size if cautious, 0.0 if panic.
+        pos_ms_ar = pos_ms_ar_raw.copy()
+        
+        # Panic zone: force to 0
+        panic_mask = mr_probs < (1.0 - danger_threshold)
+        pos_ms_ar[panic_mask] = 0.0
+        
+        # Caution zone: cut in half
+        caution_mask = (mr_probs >= (1.0 - danger_threshold)) & (mr_probs < (1.0 - (danger_threshold / 2.0)))
+        pos_ms_ar[caution_mask] = pos_ms_ar_raw[caution_mask] * 0.5
 
+        # --- Target Assignments ---
         self.data['Target_Baseline'] = pd.Series(pos_base, index=self.data.index).shift(1).fillna(0)
         self.data['Target_AR'] = pd.Series(pos_ar, index=self.data.index).shift(1).fillna(0)
         self.data['Target_MS_AR'] = pd.Series(pos_ms_ar, index=self.data.index).shift(1).fillna(0)
@@ -96,7 +106,7 @@ class BACKTESTER:
             self.data[f'CumReturn_{strat}'] = self.data[f'Return_{strat}'].cumsum()
             self.data[f'CumReturn_{strat}_Gross'] = gross.cumsum()
 
-        # --- Buy-and-Hold Spread: always long the spread, no timing ---
+        # --- Buy-and-Hold Spread ---
         self.data['Target_BuyHold'] = 1.0
         self.data['Return_BuyHold'] = self.data['Spread_Return']
         self.data['Return_BuyHold_Gross'] = self.data['Spread_Return']

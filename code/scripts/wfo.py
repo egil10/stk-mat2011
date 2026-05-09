@@ -39,7 +39,7 @@ class WFO:
 
         return (returns.mean() / returns.std()) * np.sqrt(252 * 24 * 60)
 
-    def run_wfo(self, val_months=3, test_months=1, n_trials=100, verbose=True):
+    def run_wfo(self, val_months=12, test_months=3, n_trials=100, verbose=True):
         val_step  = val_months  * 21
         test_step = test_months * 21
 
