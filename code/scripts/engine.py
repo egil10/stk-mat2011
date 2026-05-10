@@ -16,7 +16,9 @@ class ENGINE:
         self.ar_phi = None
         self.garch_params = None
         self.forecasted_vol = None
-        # AR(1)-HMM per-regime parameters
+        # AR(1)-HMM per-regime parameters (MR/DR are short-hands for the
+        # mean-revert and danger regime; full per-regime params live in the
+        # _regime_* lists so OOS likelihoods can use every state).
         self.mr_mu = None
         self.mr_sigma = None
         self.mr_rho = None
@@ -25,6 +27,11 @@ class ENGINE:
         self.dr_rho = None
         self.mr_const = None
         self.dr_const = None
+        self.mr_idx = None
+        self.k_regimes = None
+        self._regime_consts = None
+        self._regime_ars = None
+        self._regime_sigmas = None
 
     @staticmethod
     def _rolling_ols(y, x, window, refit_every=1):
@@ -76,21 +83,43 @@ class ENGINE:
         self.alpha = float(alpha_s.dropna().iloc[-1]) if alpha_s.notna().any() else None
         return self.data.dropna(subset=['Spread_Level', 'Z_Score', 'Spread_Return'])
 
-    def fit_markov_regimes(self, k_regimes=2, random_seed=42, **kwargs):
+    def fit_markov_regimes(self, k_regimes=2, random_seed=42,
+                           winsorize_std=None, scaling=None, **kwargs):
         """
         AR(1)-HMM on Spread_Level per the pairs trading spec:
             z_t = mu^k + rho^k * (z_{t-1} - mu^k) + eps_t^k
 
-        Regimes classified by |rho^k|:
-          - smallest |rho| = mean-reverting (MR)
-          - largest  |rho| = drifting       (DR)
+        Regimes classified by sigma:
+          - smallest sigma = mean-reverting / quiet (MR)
+          - largest  sigma = danger / volatile        (DR)
+
+        winsorize_std : clip the training spread to +/- winsorize_std * std before
+            fitting the HMM. Stabilises the EM solver on fat-tailed series.
+        scaling : multiply the training spread by `scaling` before fitting (a
+            pure numerical-conditioning trick). Estimated parameters are
+            unscaled before being stored, so downstream code sees them in the
+            original Spread_Level units.
         """
         if random_seed is not None: np.random.seed(random_seed)
 
-        spread = self.data['Spread_Level'].dropna()
+        spread_orig = self.data['Spread_Level'].dropna()
+
+        # Pre-process for solver stability. These transforms are LINEAR, so the
+        # regime structure (rho, transition matrix, regime probabilities) is
+        # invariant; only the scale of const/sigma changes, which we undo below.
+        spread_train = spread_orig.copy()
+        if winsorize_std is not None and winsorize_std > 0:
+            sigma_full = spread_train.std()
+            if np.isfinite(sigma_full) and sigma_full > 0:
+                hi = spread_train.median() + winsorize_std * sigma_full
+                lo = spread_train.median() - winsorize_std * sigma_full
+                spread_train = spread_train.clip(lower=lo, upper=hi)
+        scale = float(scaling) if (scaling is not None and scaling > 0) else 1.0
+        if scale != 1.0:
+            spread_train = spread_train * scale
 
         model = sm.tsa.MarkovAutoregression(
-            spread,
+            spread_train,
             k_regimes=k_regimes,
             order=1,
             switching_ar=True,
@@ -98,43 +127,52 @@ class ENGINE:
             switching_variance=True,
         ).fit(disp=False)
 
-        # --- Extract per-regime parameters ---
-        ar_coeffs = [model.params[f'ar.L1[{i}]'] for i in range(k_regimes)]
-        variances = [model.params[f'sigma2[{i}]'] for i in range(k_regimes)]
-        consts    = [model.params[f'const[{i}]'] for i in range(k_regimes)]
+        # --- Extract per-regime parameters and undo the scale transform ---
+        # If y_scaled = scale * y, then const_scaled = scale * const_orig and
+        # sigma_scaled = scale * sigma_orig. AR coefficients are dimensionless.
+        ar_coeffs = [float(model.params[f'ar.L1[{i}]']) for i in range(k_regimes)]
+        variances = [float(model.params[f'sigma2[{i}]']) / (scale ** 2) for i in range(k_regimes)]
+        consts    = [float(model.params[f'const[{i}]']) / scale for i in range(k_regimes)]
 
         # Unconditional mean: mu^k = const^k / (1 - rho^k)
         means  = [consts[i] / (1 - ar_coeffs[i]) if abs(ar_coeffs[i]) < 1 else np.nan
                    for i in range(k_regimes)]
-        sigmas = [np.sqrt(v) for v in variances]
+        sigmas = [float(np.sqrt(v)) for v in variances]
 
-        # --- Classify regimes strictly by Volatility (sigma) ---
-        # Quiet (Safe) = lowest variance, Volatile (Danger) = highest variance
-        mr_idx = int(np.argmin(sigmas)) 
-        
+        # --- Classify regimes by Volatility (sigma) ---
+        # Quiet (MR) = lowest variance, Volatile (DR) = highest variance.
+        mr_idx = int(np.argmin(sigmas))
         non_mr = [j for j in range(k_regimes) if j != mr_idx]
-        dr_idx = int(non_mr[np.argmax([sigmas[j] for j in non_mr])])
+        dr_idx = int(non_mr[int(np.argmax([sigmas[j] for j in non_mr]))])
 
-        # Store per-regime parameters
+        # Store full per-regime parameter set so OOS likelihood can use every
+        # state (matters for k_regimes >= 3, where the in-sample danger prob
+        # is the SUM of all non-MR smoothed probabilities).
+        self.k_regimes      = k_regimes
+        self.mr_idx         = mr_idx
+        self._regime_consts = consts
+        self._regime_ars    = ar_coeffs
+        self._regime_sigmas = sigmas
+
+        # Short-hands for backward compatibility (param_tracker, tearsheet,
+        # any downstream code that reads MR/DR fields directly).
         self.mr_mu, self.mr_sigma, self.mr_rho = means[mr_idx], sigmas[mr_idx], ar_coeffs[mr_idx]
         self.mr_const = consts[mr_idx]
         self.dr_mu, self.dr_sigma, self.dr_rho = means[dr_idx], sigmas[dr_idx], ar_coeffs[dr_idx]
         self.dr_const = consts[dr_idx]
 
-        # Backward-compat fields used by param_tracker / tearsheet
         self.safe_variance   = variances[mr_idx]
         self.danger_variance = variances[dr_idx]
         self.safe_mean       = means[mr_idx]
         self.danger_mean     = means[dr_idx]
-        self.ar_phi          = ar_coeffs[mr_idx]  # rho of MR regime
+        self.ar_phi          = ar_coeffs[mr_idx]
 
         self.p_safe_safe     = model.params.get(f'p[{mr_idx}->{mr_idx}]', np.nan)
         self.p_danger_danger = model.params.get(f'p[{dr_idx}->{dr_idx}]', np.nan)
 
-        # --- Regime probabilities ---
+        # --- Regime probabilities (smoothed in-sample posteriors) ---
         mr_prob = model.smoothed_marginal_probabilities[mr_idx].reindex(self.data.index)
 
-        # For k>=3, sum all non-MR regimes into "danger"
         if k_regimes > 2:
             non_mr_prob = sum(
                 model.smoothed_marginal_probabilities[j].reindex(self.data.index)
@@ -146,8 +184,8 @@ class ENGINE:
 
         self.data['MR_Prob'] = mr_prob
 
-        # --- Regime-conditional z-score: (z_t - mu^MR) / sigma_unconditional ---
-        # Unconditional std of AR(1): sigma / sqrt(1 - rho^2)
+        # Regime-conditional z-score uses the unconditional std of the MR AR(1):
+        #   sigma_uncond = sigma / sqrt(1 - rho^2)
         self.mr_sigma_uncond = self.mr_sigma / np.sqrt(max(1 - self.mr_rho**2, 1e-6))
         self.data['Regime_Z'] = (self.data['Spread_Level'] - self.mr_mu) / self.mr_sigma_uncond
 
@@ -181,33 +219,59 @@ class ENGINE:
         # --- Regime-conditional z-score (unconditional sigma) ---
         test_data['Regime_Z'] = (test_data['Spread_Level'] - self.mr_mu) / self.mr_sigma_uncond
 
-        # --- OOS regime probability via AR(1) likelihoods ---
+        # --- OOS regime probability via per-regime AR(1) likelihoods ---
         # p(z_t | z_{t-1}, regime=k) = N(const^k + rho^k * z_{t-1}, sigma^k)
+        # For k_regimes >= 3 we sum the likelihoods of all non-MR states so the
+        # OOS Danger_Prob is computed the same way as the in-sample one.
         z_t   = test_data['Spread_Level'].values
         z_lag = np.roll(z_t, 1)
         z_lag[0] = train_tail_df['Spread_Level'].iloc[-1]
 
-        cond_mean_mr = self.mr_const + self.mr_rho * z_lag
-        cond_mean_dr = self.dr_const + self.dr_rho * z_lag
+        if (self._regime_consts is not None
+                and self._regime_ars is not None
+                and self._regime_sigmas is not None
+                and self.mr_idx is not None):
+            consts_k = self._regime_consts
+            ars_k    = self._regime_ars
+            sigmas_k = self._regime_sigmas
+            mr_idx   = self.mr_idx
+        else:
+            # Fallback for callers that bypassed fit_markov_regimes.
+            consts_k = [self.mr_const, self.dr_const]
+            ars_k    = [self.mr_rho,   self.dr_rho]
+            sigmas_k = [self.mr_sigma, self.dr_sigma]
+            mr_idx   = 0
 
-        ll_mr = norm.pdf(z_t, loc=cond_mean_mr, scale=self.mr_sigma)
-        ll_dr = norm.pdf(z_t, loc=cond_mean_dr, scale=self.dr_sigma)
-        denom = ll_mr + ll_dr
+        liks = []
+        for c, rho, sig in zip(consts_k, ars_k, sigmas_k):
+            mu_t = c + rho * z_lag
+            liks.append(norm.pdf(z_t, loc=mu_t, scale=max(sig, 1e-12)))
+        liks = np.vstack(liks)                 # shape (k, n)
+        denom = liks.sum(axis=0)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            posterior = np.where(denom > 0, liks / denom, 1.0 / liks.shape[0])
 
-        mr_prob = np.where(denom > 0, ll_mr / denom, 0.5)
+        mr_prob = posterior[mr_idx]
+        non_mr  = [j for j in range(liks.shape[0]) if j != mr_idx]
+        danger_prob = posterior[non_mr].sum(axis=0) if non_mr else 1.0 - mr_prob
+
         test_data['MR_Prob'] = mr_prob
-        test_data['Danger_Regime_Prob'] = 1.0 - mr_prob
+        test_data['Danger_Regime_Prob'] = danger_prob
 
         test_data['AR_Phi'] = self.ar_phi if self.ar_phi is not None else np.nan
         return test_data
 
     @classmethod
-    def walk_forward(cls, df, train_days, coint_window, z_window, k_regimes=2, print_freq=10, **kwargs):
+    def walk_forward(cls, df, train_days, coint_window, z_window, k_regimes=2,
+                     winsorize_std=None, scaling=None, print_freq=10, **kwargs):
         df = df.copy()
         df['Date'] = df.index.date
         unique_days = df['Date'].unique()
 
-        print(f"Running Engine | train_days={train_days} | coint_window={coint_window} | z_window={z_window}")
+        winsor_str = "off" if winsorize_std in (None, 0) else f"{winsorize_std}σ"
+        scale_str  = "off" if scaling in (None, 0, 1) else f"x{scaling}"
+        print(f"Running Engine | train_days={train_days} | coint_window={coint_window} "
+              f"| z_window={z_window} | k_regimes={k_regimes} | winsor={winsor_str} | scale={scale_str}")
         oos_results, param_tracker = [], []
 
         for i in range(train_days, len(unique_days)):
@@ -218,8 +282,12 @@ class ENGINE:
             try:
                 eng = cls(train_df)
                 eng.fit_cointegration(coint_window=coint_window, z_window=z_window)
-                eng.fit_markov_regimes(k_regimes=k_regimes)
-                
+                eng.fit_markov_regimes(
+                    k_regimes=k_regimes,
+                    winsorize_std=winsorize_std,
+                    scaling=scaling,
+                )
+
                 oos = eng.predict_oos(test_df, eng.data, z_window=z_window, coint_window=coint_window)
             except Exception as e:
                 print(f"[{unique_days[i]}] skipped: {e}")
