@@ -9,9 +9,9 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
 try:
-    from plotting_utils import pdf_filename, save_figure_pdf, ECON, COL_A, COL_B, apply_econ_style
+    from plotting import pdf_filename, save_figure_pdf, ECON, COL_A, COL_B, apply_econ_style
 except ImportError:
-    from .plotting_utils import pdf_filename, save_figure_pdf, ECON, COL_A, COL_B, apply_econ_style
+    from .plotting import pdf_filename, save_figure_pdf, ECON, COL_A, COL_B, apply_econ_style
 
 class SPREAD:
     """

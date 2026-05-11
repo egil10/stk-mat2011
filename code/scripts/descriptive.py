@@ -7,9 +7,9 @@ from scipy import stats
 from scipy.stats import skew, kurtosis
 
 try:
-    from plotting_utils import pdf_filename, save_figure_pdf, ECON, COL_A, COL_B, apply_econ_style
+    from plotting import pdf_filename, save_figure_pdf, ECON, COL_A, COL_B, apply_econ_style
 except ImportError:
-    from .plotting_utils import pdf_filename, save_figure_pdf, ECON, COL_A, COL_B, apply_econ_style
+    from .plotting import pdf_filename, save_figure_pdf, ECON, COL_A, COL_B, apply_econ_style
 
 
 class DESCRIPTIVE:

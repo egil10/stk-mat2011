@@ -9,6 +9,8 @@ DEFAULT_PDF_DPI = 180
 
 
 # ── Economist-inspired palette ──────────────────────────────────────
+# Backgrounds are explicit white now; the cream/paper entries stay in
+# the dict so any caller that referenced them keeps working.
 ECON = {
     # Strategy colours
     'BuyHold':  '#F4A261',   # warm muted orange
@@ -33,8 +35,8 @@ ECON = {
     'grey':     '#6C757D',
     'lt_grey':  '#ADB5BD',
     'grid':     '#E9ECEF',
-    'cream':    '#F7F3E8',
-    'paper':    '#FBFAF7',
+    'cream':    '#F7F3E8',   # kept for legacy refs (we no longer use it)
+    'paper':    '#FFFFFF',   # was '#FBFAF7' — now pure white
 }
 
 # Ordered list for cycling through colours
@@ -50,10 +52,11 @@ COL_B = ECON['red']
 
 
 def apply_econ_style():
-    """Apply Economist-inspired matplotlib defaults globally."""
+    """Apply Economist-inspired matplotlib defaults globally (white background)."""
     plt.rcParams.update({
-        'figure.facecolor':  ECON['paper'],
-        'axes.facecolor':    ECON['paper'],
+        'figure.facecolor':  'white',
+        'axes.facecolor':    'white',
+        'savefig.facecolor': 'white',
         'axes.edgecolor':    ECON['lt_grey'],
         'axes.grid':         True,
         'grid.color':        ECON['grid'],

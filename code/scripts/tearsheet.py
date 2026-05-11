@@ -8,9 +8,9 @@ from matplotlib.colors import LinearSegmentedColormap
 from scipy import stats
 
 try:
-    from plotting_utils import pdf_filename, save_figure_pdf, ECON, apply_econ_style
+    from plotting import pdf_filename, save_figure_pdf, ECON, apply_econ_style
 except ImportError:
-    from .plotting_utils import pdf_filename, save_figure_pdf, ECON, apply_econ_style
+    from .plotting import pdf_filename, save_figure_pdf, ECON, apply_econ_style
 
 
 class TEARSHEET:
