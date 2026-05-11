@@ -27,8 +27,14 @@ plots folder (the same root the older `code/notebooks/` notebooks use):
         <PAIR>_<MONTH>_positions_and_regimes.pdf
         <PAIR>_<MONTH>_markov_dynamics.pdf
         <PAIR>_<MONTH>_cost_impact.pdf
-        <PAIR>_summary.csv
-        <PAIR>_sweep_<MONTH>.csv
+        <PAIR>_<MONTH>_series.csv     # bar-level time series (per month)
+        <PAIR>_<MONTH>_params.csv     # daily walk-forward parameters
+        <PAIR>_<MONTH>_metrics.csv    # tearsheet metrics, one row per strategy
+        <PAIR>_summary.csv            # cross-month summary
+        <PAIR>_sweep_<MONTH>.csv      # sensitivity sweep results
+
+The three per-month CSVs are written by `run_months` and `tearsheets`, so
+the report can be assembled from disk without re-running the engine.
 
 Off Colab the same files land in `./plots/<PAIR>/` next to the notebook.
 Pass `plot_dir=...` to override, or `save_plots=False` to suppress writes.
@@ -47,6 +53,21 @@ from plotting import default_pdf_dir
 
 
 class MONTH:
+    # ── columns persisted in `<PAIR>_<MONTH>_series.csv`.  Hand-picked
+    #    subset of the BACKTESTER output so each CSV stays light (~20
+    #    columns) but covers every plot in the report:
+    #      • spread / z-score / regime probabilities  → §5.2, §5.5 panels
+    #      • per-strategy positions                   → position heatmap
+    #      • per-strategy bar returns                 → distribution plots
+    #      • per-strategy cumulative returns          → equity-curve grid
+    _SERIES_COLUMNS = [
+        'Spread_Level', 'Z_Score', 'Spread_Return',
+        'MR_Prob', 'Danger_Regime_Prob',
+        'Target_BuyHold', 'Target_Baseline', 'Target_AR', 'Target_MS_AR',
+        'Return_BuyHold', 'Return_Baseline', 'Return_AR', 'Return_MS_AR',
+        'CumReturn_BuyHold', 'CumReturn_Baseline', 'CumReturn_AR', 'CumReturn_MS_AR',
+    ]
+
     DEFAULT_CFG = {
         # ---- bar aggregation ----
         'agg_type':       'tick',
@@ -169,7 +190,14 @@ class MONTH:
         return results, df_params, df
 
     def run_months(self, months):
-        """Sequentially run every month. Stores results in self.runs and self.summary_df."""
+        """Sequentially run every month. Stores results in self.runs and self.summary_df.
+
+        When `save_plots=True` (the default) every successful month also writes
+        `<PAIR>_<MONTH>_series.csv` (bar-level time series) and
+        `<PAIR>_<MONTH>_params.csv` (per-day walk-forward parameters) to
+        `self.plot_dir`, so the report can be re-plotted without re-running
+        the engine.
+        """
         self._print_engine_banner()
 
         rows = []
@@ -188,6 +216,8 @@ class MONTH:
                     f"AR={mm['AR_Sharpe']:+6.2f}  "
                     f"MS={mm['MS_AR_Sharpe']:+6.2f}"
                 )
+                if self.save_plots:
+                    self._save_month_csvs(m, results, df_params)
             except Exception as e:
                 print(f'{m}  FAILED: {type(e).__name__}: {e}')
 
@@ -263,7 +293,8 @@ class MONTH:
                 ts.plot_markov_dynamics()
                 ts.plot_cost_impact()
             if save:
-                print(f'  saved 4 plots → {self.plot_dir}')
+                self._save_metrics_csv(m, ts)
+                print(f'  saved 4 plots + metrics CSV → {self.plot_dir}')
 
     def sweep(self, month, z_quiet=None, z_volatile=None, dthresh=None):
         """Sensitivity sweep on one chosen month. 3x3x3 by default."""
@@ -316,3 +347,42 @@ class MONTH:
         if verbose:
             print(f'Saved CSV: {path}')
         return path
+
+    def _save_month_csvs(self, month, results, df_params):
+        """Persist the bar-level series and per-day parameter tracker for a month.
+
+        These two CSVs are everything the report needs to re-plot the equity
+        grid, the case-study panels, and the Markov-dynamics chart without
+        re-running the engine.
+        """
+        cols    = [c for c in self._SERIES_COLUMNS if c in results.columns]
+        series  = results[cols].copy()
+        series.index.name = series.index.name or 'timestamp'
+        self._save_csv(series,    f'{month}_series', index=True,  verbose=False)
+        if df_params is not None and len(df_params):
+            self._save_csv(df_params, f'{month}_params', index=True, verbose=False)
+
+    def _save_metrics_csv(self, month, ts):
+        """Persist the full per-strategy metric table that TEARSHEET prints.
+
+        Replicates TEARSHEET.generate_report's annualisation-factor logic so
+        the saved table matches the one printed to the console.
+        """
+        df = ts.df
+        if isinstance(df.index, pd.DatetimeIndex):
+            n_days     = max((df.index.max() - df.index.min()).days, 1)
+            ann_factor = len(df) / (n_days / 365.25)
+        else:
+            ann_factor = len(df) / (max(len(df.index.date.unique()), 1) / 252)
+
+        metrics = {}
+        for strat in ts.strats:
+            row = ts._calc_metrics(strat, ann_factor)
+            if row is None:
+                continue
+            metrics[strat] = {k: v for k, v in row.items() if '---' not in k}
+        if not metrics:
+            return
+        out = pd.DataFrame(metrics).T
+        out.index.name = 'Strategy'
+        self._save_csv(out, f'{month}_metrics', index=True, verbose=False)

@@ -13,6 +13,11 @@ This chapter is the mathematical core of the project. It defines, in order:
 Throughout, `code/scripts/...` references point at the file and class that
 implements the corresponding maths.
 
+**Notation note.** Throughout the chapter we use $\pi^{\text{MR}}_t$ for the
+smoothed posterior of being in the *Mean-Reverting* regime at bar $t$ and
+$\pi^{\text{DR}}_t = 1 - \pi^{\text{MR}}_t$ for the *Danger* regime. In code
+these are the columns `MR_Prob` and `Danger_Regime_Prob` of the OOS DataFrame.
+
 ---
 
 ## 2.1 Bar construction from raw ticks
@@ -22,10 +27,10 @@ of `(timestamp, bid, ask, bid_volume, ask_volume)` rows, one file per
 asset per month. The first step is to convert tick streams into uniform
 bars.
 
-For asset $X \in \{A, B\}$ we synthesise a mid price at every tick:
+For asset $X \in \lbrace A, B \rbrace$ we synthesise a mid price at every tick:
 
 $$
-M_t^X \;=\; \frac{B_t^X + A_t^X}{2}
+M_t^X = \frac{B_t^X + A_t^X}{2}
 $$
 
 where $B_t^X$ is the latest bid quote at the timestamp of tick $t$ (joined
@@ -66,21 +71,21 @@ We model the cointegrating relationship as a slowly-varying linear
 regression of $\log A$ on $\log B$:
 
 $$
-\log A_t \;=\; \beta_t \, \log B_t + \alpha_t + \varepsilon_t .
+\log A_t = \beta_t \log B_t + \alpha_t + \varepsilon_t .
 $$
 
 We do **not** assume $\beta$ is constant. Instead we estimate $\beta_t$ via
 **rolling OLS** with window size $W_\beta = 150$ bars:
 
 $$
-\beta_t \;=\;
-\frac{ W_\beta \sum_{s=t-W_\beta+1}^{t} x_s y_s \;-\;
+\beta_t =
+\frac{ W_\beta \sum_{s=t-W_\beta+1}^{t} x_s y_s -
        \left(\sum_s x_s\right)\left(\sum_s y_s\right) }
-     { W_\beta \sum_s x_s^2 \;-\; \left(\sum_s x_s\right)^2 }
+     { W_\beta \sum_s x_s^2 - \left(\sum_s x_s\right)^2 }
 $$
 
 $$
-\alpha_t \;=\; \frac{1}{W_\beta}\!\left( \sum_s y_s - \beta_t \sum_s x_s \right)
+\alpha_t = \frac{1}{W_\beta} \left( \sum_s y_s - \beta_t \sum_s x_s \right)
 $$
 
 with $x_s = \log B_s$, $y_s = \log A_s$, and all sums over the trailing
@@ -94,13 +99,13 @@ the walk-forward outer loop.
 The cointegration **spread** at bar $t$ is then
 
 $$
-S_t \;=\; \log A_t \;-\; \beta_t \log B_t \;-\; \alpha_t .
+S_t = \log A_t - \beta_t \log B_t - \alpha_t .
 $$
 
 We also compute a no-look-ahead **spread return**:
 
 $$
-\Delta S_t \;=\; r_t^A \;-\; \beta_{t-1}\, r_t^B
+\Delta S_t = r_t^A - \beta_{t-1} r_t^B
 $$
 
 where $r_t^A = \log A_t - \log A_{t-1}$ etc. The $\beta_{t-1}$ (lagged
@@ -116,11 +121,11 @@ For the **Baseline** strategy — which knows nothing about regimes — the
 trading signal is the rolling z-score of the spread:
 
 $$
-Z_t \;=\; \frac{S_t - \mu_t}{\sigma_t},
+Z_t = \frac{S_t - \mu_t}{\sigma_t},
 \qquad
-\mu_t \;=\; \frac{1}{W_z}\!\sum_{s=t-W_z+1}^{t} S_s,
+\mu_t = \frac{1}{W_z} \sum_{s=t-W_z+1}^{t} S_s,
 \qquad
-\sigma_t^2 \;=\; \frac{1}{W_z}\!\sum_{s=t-W_z+1}^{t} (S_s - \mu_t)^2
+\sigma_t^2 = \frac{1}{W_z} \sum_{s=t-W_z+1}^{t} (S_s - \mu_t)^2
 $$
 
 with $W_z = 50$ bars in the multi-month runs.
@@ -140,18 +145,18 @@ $T_{\text{train}} = 3$-day training window.
 
 ### 2.4.1 Generative model
 
-Let $S_t$ denote the spread (`Spread_Level`) and $K_t \in \{1, 2\}$ a
+Let $S_t$ denote the spread (`Spread_Level`) and $K_t \in \lbrace 1, 2 \rbrace$ a
 latent discrete regime indicator. The joint generative model is:
 
 $$
-S_t \,\big|\, S_{t-1},\, K_t = k
-\;\sim\; \mathcal{N}\!\left( c^{(k)} + \rho^{(k)} S_{t-1},\; (\sigma^{(k)})^2 \right)
+S_t \mid S_{t-1}, K_t = k
+\sim \mathcal{N}\left( c^{(k)} + \rho^{(k)} S_{t-1}, (\sigma^{(k)})^2 \right)
 $$
 
 $$
-P(K_t = j \mid K_{t-1} = i) \;=\; p_{ij},
+P(K_t = j \mid K_{t-1} = i) = p_{ij},
 \qquad
-P \;=\; \begin{pmatrix} p_{11} & p_{12} \\ p_{21} & p_{22} \end{pmatrix},
+P = \begin{pmatrix} p_{11} & p_{12} \\ p_{21} & p_{22} \end{pmatrix},
 \qquad p_{i1} + p_{i2} = 1.
 $$
 
@@ -162,7 +167,7 @@ innovation variance $(\sigma^{(k)})^2$.
 The unconditional mean of regime $k$, when $|\rho^{(k)}| < 1$, is
 
 $$
-\mu^{(k)} \;=\; \frac{c^{(k)}}{1 - \rho^{(k)}} .
+\mu^{(k)} = \frac{c^{(k)}}{1 - \rho^{(k)}} .
 $$
 
 ### 2.4.2 Parameter estimation
@@ -194,16 +199,16 @@ and the estimated constants/variances are unscaled afterwards):
 
 ### 2.4.3 Regime classification (labelling)
 
-The Markov chain itself does not assign a meaning to the labels $\{1,
-2\}$ — that's done after the fit. We label the regime with the smallest
+The Markov chain itself does not assign a meaning to the labels $\lbrace 1,
+2 \rbrace$ — that's done after the fit. We label the regime with the smallest
 fitted innovation variance $\sigma^{(k)}$ as **Mean-Reverting (MR /
 quiet)** and the regime with the largest variance as **Danger
 (DR / volatile)**:
 
 $$
-\text{MR index} \;=\; \arg\min_k \sigma^{(k)},
+\text{MR index} = \arg\min_k \sigma^{(k)},
 \qquad
-\text{DR index} \;=\; \arg\max_k \sigma^{(k)} .
+\text{DR index} = \arg\max_k \sigma^{(k)} .
 $$
 
 This is purely a convention for downstream code; the underlying chain
@@ -215,16 +220,16 @@ For every bar in the training window we record the smoothed posterior of
 being in the MR regime:
 
 $$
-\text{MR\_Prob}_t \;=\; \gamma_t^{(\text{MR})}
-\;=\; P(K_t = \text{MR} \mid S_1, \dots, S_T)
+\pi^{\text{MR}}_t = \gamma_t^{(\text{MR})} = P(K_t = \text{MR} \mid S_1, \dots, S_T)
 $$
 
 $$
-\text{Danger\_Regime\_Prob}_t \;=\; 1 - \text{MR\_Prob}_t .
+\pi^{\text{DR}}_t = 1 - \pi^{\text{MR}}_t .
 $$
 
-These are used by the strategies during back-testing on the training
-data and stored for diagnostic plotting.
+In code these are the DataFrame columns `MR_Prob` and `Danger_Regime_Prob`
+respectively. They are used by the strategies during back-testing on the
+training data and stored for diagnostic plotting.
 
 ### 2.4.5 Out-of-sample regime probabilities
 
@@ -239,15 +244,15 @@ Instead we keep the per-regime AR(1) parameters $(c^{(k)}, \rho^{(k)},
 
 $$
 P(K_t = k \mid S_t, S_{t-1})
-\;=\;
-\frac{ \mathcal{N}\!\left(S_t;\; c^{(k)} + \rho^{(k)} S_{t-1},\; (\sigma^{(k)})^2\right) }
-     { \sum_{k'} \mathcal{N}\!\left(S_t;\; c^{(k')} + \rho^{(k')} S_{t-1},\; (\sigma^{(k')})^2\right) } .
+=
+\frac{ \mathcal{N}\left(S_t, c^{(k)} + \rho^{(k)} S_{t-1}, (\sigma^{(k)})^2\right) }
+     { \sum_{k'} \mathcal{N}\left(S_t, c^{(k')} + \rho^{(k')} S_{t-1}, (\sigma^{(k')})^2\right) } .
 $$
 
 This is essentially the regime classifier viewed as a Gaussian mixture
 with the prior replaced by the AR(1) one-step distribution. Code:
-`ENGINE.predict_oos`. The output is `MR_Prob[t]` and
-`Danger_Regime_Prob[t]` on the trading day, computed without ever
+`ENGINE.predict_oos`. The output is $\pi^{\text{MR}}_t$ and
+$\pi^{\text{DR}}_t$ on the trading day, computed without ever
 looking at $S_{t+1}, S_{t+2}, \dots$.
 
 A small detail used inside the backtester: the OOS posteriors are
@@ -286,12 +291,13 @@ All four strategies act on the same OOS DataFrame produced by
 `ENGINE.walk_forward`. The columns they read are:
 
 - `Z_Score` — rolling z-score of the spread (definition in §2.3)
-- `MR_Prob`, `Danger_Regime_Prob` — HMM posteriors (definition in §2.4)
+- `MR_Prob`, `Danger_Regime_Prob` — HMM posteriors
+  $\pi^{\text{MR}}_t$ and $\pi^{\text{DR}}_t$ (definition in §2.4)
 - `Spread_Return` — no-look-ahead spread return (definition in §2.2)
 - `HalfSpread_A_bps`, `HalfSpread_B_bps` — slippage components
 
 Each strategy is a function that, at every bar, decides a position
-$P_t \in \{-1,\, 0,\, +1\}$ representing "short the spread", "flat" or
+$P_t \in \lbrace -1, 0, +1 \rbrace$ representing "short the spread", "flat" or
 "long the spread". The four strategies are then run through the same
 PnL machinery in §2.6.
 
@@ -300,7 +306,7 @@ PnL machinery in §2.6.
 The do-nothing strategy. The position is always long the spread:
 
 $$
-P_t^{\text{BH}} \;=\; +1 \quad\text{for every bar.}
+P_t^{\text{BH}} = +1 \quad\text{for every bar.}
 $$
 
 It earns $\Delta S_t$ every bar and pays *no transaction costs* (in our
@@ -326,7 +332,7 @@ The textbook z-score strategy. Two parameters:
 Position rules, applied bar-by-bar:
 
 $$
-P_t \;=\;
+P_t =
 \begin{cases}
 +1 & \text{if } P_{t-1} = 0 \text{ and } Z_t < -z_q \\
 -1 & \text{if } P_{t-1} = 0 \text{ and } Z_t > +z_q \\
@@ -336,8 +342,8 @@ P_{t-1} & \text{otherwise.}
 \end{cases}
 $$
 
-Baseline **ignores** `MR_Prob` and `Danger_Regime_Prob` entirely. It
-always trades on z-score deviation, no matter what the HMM is saying.
+Baseline **ignores** $\pi^{\text{MR}}_t$ and $\pi^{\text{DR}}_t$ entirely.
+It always trades on z-score deviation, no matter what the HMM is saying.
 
 ### 2.5.3 AR — z-score plus a hard kill switch
 
@@ -345,7 +351,7 @@ Same entry/exit *direction* rules as Baseline, with one extra binary
 condition: the **gate**
 
 $$
-G_t \;=\; \mathbf{1}\!\left\{ \text{MR\_Prob}_t \;\geq\; 1 - \delta \right\}
+G_t = \mathbf{1}\left\lbrace \pi^{\text{MR}}_t \geq 1 - \delta \right\rbrace
 $$
 
 where $\delta$ is the `danger_threshold` parameter (we use $\delta = 0.30$,
@@ -355,9 +361,9 @@ the gate closes whenever Danger probability exceeds 0.30).
 Modified rule:
 
 $$
-P_t \;=\;
+P_t =
 \begin{cases}
-0 & \text{if } G_t = 0 \quad\text{(panic liquidation \&\ no new entries)} \\
+0 & \text{if } G_t = 0 \quad\text{(panic liquidation; no new entries)} \\
 \text{(same as Baseline)} & \text{if } G_t = 1
 \end{cases}
 $$
@@ -381,8 +387,7 @@ Same entry/exit *direction* rules as Baseline, but the entry threshold
 itself is **dynamic** and **probability-weighted**:
 
 $$
-z_q^{\text{eff}}(t) \;=\; \text{MR\_Prob}_t \cdot z_q
-                       \;+\; \text{Danger\_Regime\_Prob}_t \cdot z_v
+z_q^{\text{eff}}(t) = \pi^{\text{MR}}_t \cdot z_q + \pi^{\text{DR}}_t \cdot z_v
 $$
 
 with $z_v$ ("volatile entry threshold") set to $z_v = 2.5$ in the
@@ -391,7 +396,7 @@ multi-month runs.
 Position rule:
 
 $$
-P_t \;=\;
+P_t =
 \begin{cases}
 +1 & \text{if } P_{t-1} = 0 \text{ and } Z_t < -z_q^{\text{eff}}(t) \\
 -1 & \text{if } P_{t-1} = 0 \text{ and } Z_t > +z_q^{\text{eff}}(t) \\
@@ -407,9 +412,9 @@ the entry threshold widening.
 
 Intuition by limit:
 
-- **All-quiet limit** ($\text{MR\_Prob} \to 1$): $z_q^{\text{eff}} \to
+- **All-quiet limit** ($\pi^{\text{MR}}_t \to 1$): $z_q^{\text{eff}} \to
   z_q = 1.3$. Strategy entries reduce to Baseline.
-- **All-danger limit** ($\text{Danger\_Prob} \to 1$): $z_q^{\text{eff}}
+- **All-danger limit** ($\pi^{\text{DR}}_t \to 1$): $z_q^{\text{eff}}
   \to z_v = 2.5$. Strategy still trades, but only on much more extreme
   z-deviations. Trade frequency drops.
 - **Mixed regime**: linear blend. Soft gating.
@@ -423,34 +428,34 @@ band) and cautious (wide band) without ever fully disengaging.
 |----------|:---:|---|---|:---:|
 | **Buy & Hold** | yes | — | — | no |
 | **Baseline**   | no  | $z_q$ (constant) | always 1 | no |
-| **AR**         | no  | $z_q$ (constant) | $\mathbf{1}\{\text{MR\_Prob}_t \geq 1-\delta\}$ | yes (binary) |
-| **MS-AR**      | no  | $\text{MR\_Prob}_t \cdot z_q + \text{Danger\_Prob}_t \cdot z_v$ | always 1 | yes (continuous) |
+| **AR**         | no  | $z_q$ (constant) | $\mathbf{1}\lbrace \pi^{\text{MR}}_t \geq 1-\delta \rbrace$ | yes (binary) |
+| **MS-AR**      | no  | $\pi^{\text{MR}}_t \cdot z_q + \pi^{\text{DR}}_t \cdot z_v$ | always 1 | yes (continuous) |
 
 A single position-rule template covers Baseline / AR / MS-AR:
 
 $$
-P_t \;=\;
+P_t =
 \begin{cases}
 0 & \text{if } G_t = 0 \\
-\mathrm{sign}(-Z_t) & \text{if } P_{t-1} = 0,\; G_t = 1,\; |Z_t| > E_t \\
-0 & \text{if } P_{t-1} \neq 0,\; |Z_t| \leq z_x \\
+\mathrm{sign}(-Z_t) & \text{if } P_{t-1} = 0, G_t = 1, |Z_t| > E_t \\
+0 & \text{if } P_{t-1} \neq 0, |Z_t| \leq z_x \\
 P_{t-1} & \text{otherwise.}
 \end{cases}
 $$
 
 Code reference: `code/scripts/backtester.py` lines 59–78 build the
-appropriate $(\text{entry\_z\_arr}, \text{signals\_allowed})$ pair per
-strategy and dispatches to `_generate_positions` (or `_positions_daily`
-when `flatten_eod=True`).
+appropriate `(entry_z_arr, signals_allowed)` pair per strategy and
+dispatches to `_generate_positions` (or `_positions_daily` when
+`flatten_eod=True`).
 
 ### 2.5.6 What's different at a glance
 
 The simplest way to see the difference between AR and MS-AR is to
-imagine the HMM has just emitted $\text{Danger\_Prob}_t = 0.8$ (so
-$\text{MR\_Prob}_t = 0.2$):
+imagine the HMM has just emitted $\pi^{\text{DR}}_t = 0.8$ (so
+$\pi^{\text{MR}}_t = 0.2$):
 
 - **Baseline** doesn't notice. Continues to trade against $z_q = 1.3$.
-- **AR** sees $\text{MR\_Prob}_t = 0.2 < 1 - \delta = 0.7$, so $G_t = 0$.
+- **AR** sees $\pi^{\text{MR}}_t = 0.2 < 1 - \delta = 0.7$, so $G_t = 0$.
   Any open position is closed immediately. No new entries allowed.
 - **MS-AR** computes $z_q^{\text{eff}}(t) = 0.2 \cdot 1.3 + 0.8 \cdot 2.5
   = 2.26$. Any open position is held. New entries require $|Z_t| > 2.26$
@@ -472,7 +477,7 @@ turns that into realised returns.
 Position is **applied with a one-bar lag**:
 
 $$
-\mathrm{Target}_t \;=\; P_{t-1} .
+\mathrm{Target}_t = P_{t-1} .
 $$
 
 This is the standard fix to prevent a strategy from earning the same
@@ -482,7 +487,7 @@ bar's return it used to make the decision. In code:
 ### 2.6.2 Gross return
 
 $$
-r_t^{\text{gross}} \;=\; \mathrm{Target}_t \cdot \Delta S_t
+r_t^{\text{gross}} = \mathrm{Target}_t \cdot \Delta S_t
 $$
 
 with $\Delta S_t$ already computed using $\beta_{t-1}$ (so the position
@@ -495,7 +500,7 @@ of opening — fully causal).
 A trade is initiated whenever the target position changes:
 
 $$
-T_t \;=\; \mathbf{1}\!\left\{ \mathrm{Target}_t \neq \mathrm{Target}_{t-1} \right\} .
+T_t = \mathbf{1}\left\lbrace \mathrm{Target}_t \neq \mathrm{Target}_{t-1} \right\rbrace .
 $$
 
 Two cost terms per trade:
@@ -509,13 +514,13 @@ Two cost terms per trade:
 ### 2.6.4 Net return and cumulative return
 
 $$
-r_t \;=\; r_t^{\text{gross}} \;-\;
-          \frac{c_f}{10^4} T_t \;-\;
-          \frac{\text{HS}^A_t + \text{HS}^B_t}{10^4} T_t
+r_t = r_t^{\text{gross}} -
+      \frac{c_f}{10^4} T_t -
+      \frac{\text{HS}^A_t + \text{HS}^B_t}{10^4} T_t
 $$
 
 $$
-R_T \;=\; \sum_{t=1}^{T} r_t .
+R_T = \sum_{t=1}^{T} r_t .
 $$
 
 We store $r_t$ as `Return_{Strat}`, $r_t^{\text{gross}}$ as
@@ -527,7 +532,7 @@ In all multi-month notebooks we set `flatten_eod=True`. This rewrites
 the position series so that
 
 $$
-P_t \;\leftarrow\; 0 \quad\text{if } t \text{ is the last bar of its day.}
+P_t \leftarrow 0 \quad\text{if } t \text{ is the last bar of its day.}
 $$
 
 Implementation (`_positions_daily`) runs `_generate_positions`
@@ -558,14 +563,14 @@ All metrics are computed by `TEARSHEET._calc_metrics`
 We use a **tick-clock annualisation factor**
 
 $$
-F \;=\; 252 \times 24 \times 60 \;=\; 362\,880,
+F = 252 \times 24 \times 60 = 362{,}880,
 $$
 
 interpreted as "minutes of trading per year if every bar is a minute".
 For 500-tick bars on a liquid pair this is roughly the bar rate during
 active hours, so $F$ is a reasonable scaling for ratio statistics.
 
-**Important caveat.** Annualising a bar-clock Sharpe with $F = 362\,880$
+**Important caveat.** Annualising a bar-clock Sharpe with $F \approx 3.6 \times 10^5$
 gives a number that is **$\sqrt{F/252} \approx 38\times$ larger** than
 the same strategy's daily-returns Sharpe. The cross-strategy ordering
 within a month-pair is preserved. The absolute level is not directly
@@ -583,10 +588,10 @@ presentational.
 ### 2.7.3 Risk metrics
 
 - **Annualised Volatility** $= \hat\sigma_r \cdot \sqrt{F}$.
-- **Max Drawdown** $= \min_t \!\left( R_t - \max_{s \leq t} R_s \right)$.
+- **Max Drawdown** $= \min_t \left( R_t - \max_{s \leq t} R_s \right)$.
 - **Max Drawdown Duration** = longest stretch of bars below the previous
   peak.
-- **Ulcer Index** $= \sqrt{\,\mathbb E[(R_t - \max_{s \leq t} R_s)^2]\,}$.
+- **Ulcer Index** $= \sqrt{\mathbb{E}[(R_t - \max_{s \leq t} R_s)^2]}$.
   RMS of the running drawdown — penalises both deep *and* long
   drawdowns.
 - **Value at Risk 95%** = empirical 5th percentile of bar returns.
@@ -598,7 +603,7 @@ presentational.
 - **Sortino** $= \dfrac{\bar r}{\hat\sigma_{r,\text{downside}}} \sqrt F$
   where the downside std uses only $r_t < 0$.
 - **Calmar** $= \dfrac{\text{AnnReturn}}{|\text{MaxDD}|}$.
-- **Profit Factor** $= \dfrac{\sum_{r > 0} r}{\big|\sum_{r < 0} r\big|}$.
+- **Profit Factor** $= \dfrac{\sum_{r > 0} r}{\left|\sum_{r < 0} r\right|}$.
 - **Payoff Ratio** $= \dfrac{|\bar r_+|}{|\bar r_-|}$ where $\bar r_+$ is
   the mean of positive bar returns and $\bar r_-$ the mean of negatives.
 - **Tail Ratio** $= \dfrac{|P_{95}(r)|}{|P_5(r)|}$ — symmetry of tails.
@@ -612,8 +617,8 @@ presentational.
 
 ### 2.7.6 Distributional metrics
 
-- **Skewness** of $\{r_t\}$.
-- **Kurtosis** of $\{r_t\}$ (excess kurtosis; fat-tailed returns score
+- **Skewness** of $\lbrace r_t \rbrace$.
+- **Kurtosis** of $\lbrace r_t \rbrace$ (excess kurtosis; fat-tailed returns score
   much higher than 3).
 
 ---

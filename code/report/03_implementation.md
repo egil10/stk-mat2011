@@ -130,7 +130,7 @@ correspond 1-to-1 with the maths of §2.2 and §2.4:
 
 | Method | Maths | Lines |
 |---|---|---|
-| `_rolling_ols(y, x, window)` | $\beta_t,\, \alpha_t$ via cumulative sums | 36–64 |
+| `_rolling_ols(y, x, window)` | $\beta_t, \alpha_t$ via cumulative sums | 36–64 |
 | `fit_cointegration(...)` | Spread, Z-score, Spread_Return | 66–84 |
 | `fit_markov_regimes(...)` | EM fit of MS-AR(1), regime labelling, in-sample posteriors | 86–192 |
 | `predict_oos(test_df, train_tail_df, ...)` | OOS analytical one-step posterior | 194–262 |

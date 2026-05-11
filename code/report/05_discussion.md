@@ -192,7 +192,7 @@ Structural reasons MS-AR dominates AR in most contexts:
    transiently — the un-realised gain becomes a paid spread and a
    reset position. MS-AR holds and lets the trade complete.
 3. **Continuous response to a continuous signal.** The HMM produces a
-   continuous posterior $\text{Danger\_Prob} \in [0, 1]$. Binarising
+   continuous posterior $\pi^{\text{DR}}_t \in [0, 1]$. Binarising
    it with a single threshold $\delta$ throws away most of the
    information. MS-AR uses the posterior as a continuous weighting,
    which more efficiently encodes the model's uncertainty.

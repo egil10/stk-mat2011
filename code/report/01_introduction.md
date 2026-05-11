@@ -13,7 +13,7 @@ non-stationary log-price series $\log A_t$ and $\log B_t$ are cointegrated
 if there exists a hedge ratio $\beta$ such that the spread
 
 $$
-S_t \;=\; \log A_t - \beta \log B_t
+S_t = \log A_t - \beta \log B_t
 $$
 
 is stationary. The stationary spread becomes the tradeable signal: it has a

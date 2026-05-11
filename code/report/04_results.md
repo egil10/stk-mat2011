@@ -170,9 +170,9 @@ Two clean findings:
 For each pair we ran a 3×3×3 grid of `(z_quiet, z_volatile,
 danger_threshold)` on August 2024 with:
 
-- $z_q \in \{1.0,\, 1.3,\, 1.6\}$
-- $z_v \in \{2.0,\, 2.5,\, 3.5\}$
-- $\delta \in \{0.15,\, 0.30,\, 0.50\}$
+- $z_q \in \lbrace 1.0, 1.3, 1.6 \rbrace$
+- $z_v \in \lbrace 2.0, 2.5, 3.5 \rbrace$
+- $\delta \in \lbrace 0.15, 0.30, 0.50 \rbrace$
 
 27 cells × 3 pairs = 81 backtests. The summary is the count of cells
 in which MS-AR wins the pairwise comparison:
