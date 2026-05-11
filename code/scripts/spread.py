@@ -131,7 +131,7 @@ class SPREAD:
         # 8. Concat only the tiny compressed volume bars at the very end
         return pd.concat(all_bars).sort_index()
 
-    def build(self, file_paths):
+    def build(self, file_paths, verbose=True):
         if len(file_paths) != 4:
             raise ValueError("Provide exactly 4 file paths: [ask_a, bid_a, ask_b, bid_b]")
 
@@ -159,7 +159,8 @@ class SPREAD:
 
         df_pairs = df_pairs.dropna()
         self.data = df_pairs
-        print(f"built {len(self.data)} rows")
+        if verbose:
+            print(f"built {len(self.data)} rows")
         return self.data
 
     def plot_diagnostics(self, save_pdf=None, pdf_dir=None, filename=None):

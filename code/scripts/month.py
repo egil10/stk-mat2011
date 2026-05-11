@@ -135,7 +135,7 @@ class MONTH:
             threshold    = c['bar_threshold'],
             active_hours = (c['start_hour'], c['end_hour']),
         )
-        df = builder.build(self._files([month]))
+        df = builder.build(self._files([month]), verbose=False)
         live, df_params = ENGINE.walk_forward(
             df            = df,
             train_days    = c['train_days'],
@@ -145,6 +145,7 @@ class MONTH:
             winsorize_std = c['winsorize_std'],
             scaling       = c['scaling'],
             print_freq    = 10**6,        # silence per-day prints
+            verbose       = False,        # silence the "Running Engine | ..." banner
         )
         return df, live, df_params
 
@@ -152,13 +153,9 @@ class MONTH:
     # Public pipeline
     # ------------------------------------------------------------------
 
-    def run(self, month, verbose=True):
-        """Build -> engine -> backtest for one month. Returns (results, df_params)."""
+    def run(self, month):
+        """Build -> engine -> backtest for one month. Returns (results, df_params, df)."""
         df, live, df_params = self._engine_run(month)
-        if verbose:
-            n_days = df.index.normalize().unique().shape[0]
-            print(f'  bars={len(df):,}  days={n_days}')
-
         c = self.cfg
         results = BACKTESTER(live).run(
             z_quiet          = c['z_quiet'],
@@ -169,28 +166,46 @@ class MONTH:
             slippage_mode    = c['slippage_mode'],
             flatten_eod      = c['flatten_eod'],
         )
-        return results, df_params
+        return results, df_params, df
 
     def run_months(self, months):
         """Sequentially run every month. Stores results in self.runs and self.summary_df."""
+        self._print_engine_banner()
+
         rows = []
         for m in months:
-            print(f'\n--- {m} ---')
             try:
-                results, df_params = self.run(m)
+                results, df_params, df = self.run(m)
                 self.runs[m] = (results, df_params)
                 mm = self._metrics(results)
                 mm['Month'] = m
                 rows.append(mm)
-                print(f"  Sharpe  Baseline={mm['Baseline_Sharpe']:+.2f}  "
-                      f"AR={mm['AR_Sharpe']:+.2f}  MS_AR={mm['MS_AR_Sharpe']:+.2f}")
+                n_bars = len(df)
+                n_days = df.index.normalize().unique().shape[0]
+                print(
+                    f"{m}  bars={n_bars:>5,}  days={n_days:>2}  | "
+                    f"Sharpe  B={mm['Baseline_Sharpe']:+6.2f}  "
+                    f"AR={mm['AR_Sharpe']:+6.2f}  "
+                    f"MS={mm['MS_AR_Sharpe']:+6.2f}"
+                )
             except Exception as e:
-                print(f'  FAILED: {type(e).__name__}: {e}')
+                print(f'{m}  FAILED: {type(e).__name__}: {e}')
 
         self.summary_df = pd.DataFrame(rows).set_index('Month') if rows else None
         if self.summary_df is not None and self.save_plots:
-            self._save_csv(self.summary_df, 'summary', index=True)
+            self._save_csv(self.summary_df, 'summary', index=True, verbose=False)
         return self.summary_df
+
+    def _print_engine_banner(self):
+        """Single one-line engine config banner printed at the start of a multi-month run."""
+        c = self.cfg
+        winsor_str = "off" if c['winsorize_std'] in (None, 0) else f"{c['winsorize_std']}σ"
+        scale_str  = "off" if c['scaling']       in (None, 0, 1) else f"x{c['scaling']}"
+        print(
+            f"Engine: train_days={c['train_days']} | coint_window={c['coint_window']} | "
+            f"z_window={c['z_window']} | k_regimes={c['k_regimes']} | "
+            f"winsor={winsor_str} | scale={scale_str}"
+        )
 
     def summary(self):
         """Pretty-print cross-month summary tables + verdict."""
@@ -247,6 +262,8 @@ class MONTH:
                 ts.plot_positions_and_regimes()
                 ts.plot_markov_dynamics()
                 ts.plot_cost_impact()
+            if save:
+                print(f'  saved 4 plots → {self.plot_dir}')
 
     def sweep(self, month, z_quiet=None, z_volatile=None, dthresh=None):
         """Sensitivity sweep on one chosen month. 3x3x3 by default."""
@@ -285,16 +302,17 @@ class MONTH:
 
         self.sweep_df = sw
         if self.save_plots:
-            self._save_csv(sw, f'sweep_{month}', index=False)
+            self._save_csv(sw, f'sweep_{month}', index=False, verbose=False)
         return sw
 
     # ------------------------------------------------------------------
     # IO helpers
     # ------------------------------------------------------------------
 
-    def _save_csv(self, df, name, index=False):
+    def _save_csv(self, df, name, index=False, verbose=False):
         """Write a DataFrame to `{plot_dir}/{pair_name}_{name}.csv`."""
         path = self.plot_dir / f'{self.pair_name}_{name}.csv'
         df.to_csv(path, index=index)
-        print(f'Saved CSV: {path}')
+        if verbose:
+            print(f'Saved CSV: {path}')
         return path

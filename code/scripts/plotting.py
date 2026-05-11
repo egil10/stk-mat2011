@@ -103,6 +103,7 @@ def save_figure_pdf(
     enabled=False,
     rasterize=True,
     dpi=DEFAULT_PDF_DPI,
+    verbose=False,
 ):
     if not enabled:
         return None
@@ -125,5 +126,6 @@ def save_figure_pdf(
     }):
         fig.savefig(output_path, format="pdf", bbox_inches="tight", dpi=dpi)
 
-    print(f"Saved plot PDF: {output_path}")
+    if verbose:
+        print(f"Saved plot PDF: {output_path}")
     return output_path

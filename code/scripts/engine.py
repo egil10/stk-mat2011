@@ -1,4 +1,6 @@
 
+import warnings
+
 import numpy as np, pandas as pd
 import statsmodels.api as sm
 from scipy.stats import norm
@@ -118,14 +120,20 @@ class ENGINE:
         if scale != 1.0:
             spread_train = spread_train * scale
 
-        model = sm.tsa.MarkovAutoregression(
-            spread_train,
-            k_regimes=k_regimes,
-            order=1,
-            switching_ar=True,
-            switching_trend=True,
-            switching_variance=True,
-        ).fit(disp=False)
+        # statsmodels emits a torrent of ValueWarning / ConvergenceWarning per
+        # EM call.  They're not actionable here (we already winsorise + scale
+        # for stability) and they swamp the notebook output when walk-forward
+        # refits every trading day.  Suppress locally rather than globally.
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            model = sm.tsa.MarkovAutoregression(
+                spread_train,
+                k_regimes=k_regimes,
+                order=1,
+                switching_ar=True,
+                switching_trend=True,
+                switching_variance=True,
+            ).fit(disp=False)
 
         # --- Extract per-regime parameters and undo the scale transform ---
         # If y_scaled = scale * y, then const_scaled = scale * const_orig and
@@ -263,15 +271,17 @@ class ENGINE:
 
     @classmethod
     def walk_forward(cls, df, train_days, coint_window, z_window, k_regimes=2,
-                     winsorize_std=None, scaling=None, print_freq=10, **kwargs):
+                     winsorize_std=None, scaling=None, print_freq=10, verbose=True,
+                     **kwargs):
         df = df.copy()
         df['Date'] = df.index.date
         unique_days = df['Date'].unique()
 
-        winsor_str = "off" if winsorize_std in (None, 0) else f"{winsorize_std}σ"
-        scale_str  = "off" if scaling in (None, 0, 1) else f"x{scaling}"
-        print(f"Running Engine | train_days={train_days} | coint_window={coint_window} "
-              f"| z_window={z_window} | k_regimes={k_regimes} | winsor={winsor_str} | scale={scale_str}")
+        if verbose:
+            winsor_str = "off" if winsorize_std in (None, 0) else f"{winsorize_std}σ"
+            scale_str  = "off" if scaling in (None, 0, 1) else f"x{scaling}"
+            print(f"Running Engine | train_days={train_days} | coint_window={coint_window} "
+                  f"| z_window={z_window} | k_regimes={k_regimes} | winsor={winsor_str} | scale={scale_str}")
         oos_results, param_tracker = [], []
 
         for i in range(train_days, len(unique_days)):
