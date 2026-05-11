@@ -10,14 +10,31 @@ short and declarative.
     m = MONTH('AUDUSD', 'NZDUSD')          # default config (see DEFAULT_CFG)
     m.run_months(['202408', '202409', '202508'])
     m.summary()                            # pretty tables + verdict
-    m.tearsheets()                         # per-month report + plot
+    m.tearsheets()                         # per-month report + 4 PDFs each
     m.sweep('202408')                      # 3 x 3 x 3 sensitivity grid
 
 Override any default by passing it as a keyword to the constructor:
 
     m = MONTH('GBPUSD', 'EURUSD', train_days=5, k_regimes=3)
+
+Output artefacts
+----------------
+By default everything is saved to a per-pair folder under the shared Drive
+plots folder (the same root the older `code/notebooks/` notebooks use):
+
+    /content/drive/MyDrive/GITHUB-COPILOT/stk-mat2011/plots/<PAIR>/
+        <PAIR>_<MONTH>_performance.pdf
+        <PAIR>_<MONTH>_positions_and_regimes.pdf
+        <PAIR>_<MONTH>_markov_dynamics.pdf
+        <PAIR>_<MONTH>_cost_impact.pdf
+        <PAIR>_summary.csv
+        <PAIR>_sweep_<MONTH>.csv
+
+Off Colab the same files land in `./plots/<PAIR>/` next to the notebook.
+Pass `plot_dir=...` to override, or `save_plots=False` to suppress writes.
 """
 import itertools
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -26,6 +43,7 @@ from spread import SPREAD
 from engine import ENGINE
 from backtester import BACKTESTER
 from tearsheet import TEARSHEET
+from plotting import default_pdf_dir
 
 
 class MONTH:
@@ -57,12 +75,24 @@ class MONTH:
         'ann_factor': 252 * 24 * 60,    # bars/year for tick-clock Sharpe
     }
 
-    def __init__(self, name_a, name_b, data_dir='../data/processed', **overrides):
+    def __init__(self, name_a, name_b, data_dir='../data/processed',
+                 plot_dir=None, save_plots=True, **overrides):
         self.name_a    = name_a
         self.name_b    = name_b
         self.pair_name = f'{name_a}_{name_b}'
         self.data_dir  = data_dir
         self.cfg       = {**self.DEFAULT_CFG, **overrides}
+
+        # Resolve the per-pair output folder.  On Colab `default_pdf_dir()`
+        # returns `/content/drive/MyDrive/GITHUB-COPILOT/stk-mat2011/plots`
+        # so all PDFs and CSVs land in
+        # `.../plots/{pair_name}/`.  Locally it falls back to `./plots`.
+        self.save_plots = bool(save_plots)
+        self.plot_dir   = Path(plot_dir) if plot_dir is not None \
+                          else default_pdf_dir() / self.pair_name
+        if self.save_plots:
+            self.plot_dir.mkdir(parents=True, exist_ok=True)
+            print(f'Plots/CSVs will be saved to: {self.plot_dir}')
 
         self.runs       = {}    # month -> (results, df_params)
         self.summary_df = None
@@ -158,6 +188,8 @@ class MONTH:
                 print(f'  FAILED: {type(e).__name__}: {e}')
 
         self.summary_df = pd.DataFrame(rows).set_index('Month') if rows else None
+        if self.summary_df is not None and self.save_plots:
+            self._save_csv(self.summary_df, 'summary', index=True)
         return self.summary_df
 
     def summary(self):
@@ -189,15 +221,32 @@ class MONTH:
         print(f'\nMS_AR beat Baseline in {wins_b}/{n} months  |  '
               f'MS_AR beat AR in {wins_a}/{n} months')
 
-    def tearsheets(self, plot=True):
-        """Full TEARSHEET report (and optional plot) for every month run."""
+    def tearsheets(self, plot=True, save=None):
+        """Full TEARSHEET report + all four plots for every month run.
+
+        When `save_plots=True` was set on the MONTH (the default) every plot
+        is also written to PDF in `self.plot_dir`, mirroring the older
+        notebooks in `code/notebooks/`.  Pass `save=False` to skip PDF
+        writing without changing the instance-level flag.
+        """
+        if save is None:
+            save = self.save_plots
+
         for m, (results, df_params) in self.runs.items():
             print(f'\n{"="*30}  {m}  {"="*30}')
-            ts = TEARSHEET(results, df_params=df_params,
-                           pdf_prefix=f'{self.pair_name}_{m}')
+            ts = TEARSHEET(
+                results,
+                df_params  = df_params,
+                save_pdf   = save,
+                pdf_dir    = str(self.plot_dir) if save else None,
+                pdf_prefix = f'{self.pair_name}_{m}',
+            )
             ts.generate_report()
             if plot:
                 ts.plot_performance()
+                ts.plot_positions_and_regimes()
+                ts.plot_markov_dynamics()
+                ts.plot_cost_impact()
 
     def sweep(self, month, z_quiet=None, z_volatile=None, dthresh=None):
         """Sensitivity sweep on one chosen month. 3x3x3 by default."""
@@ -235,4 +284,17 @@ class MONTH:
               f'{int((sw["MS_AR_vs_Baseline"] > 0).sum())}/{len(sw)}')
 
         self.sweep_df = sw
+        if self.save_plots:
+            self._save_csv(sw, f'sweep_{month}', index=False)
         return sw
+
+    # ------------------------------------------------------------------
+    # IO helpers
+    # ------------------------------------------------------------------
+
+    def _save_csv(self, df, name, index=False):
+        """Write a DataFrame to `{plot_dir}/{pair_name}_{name}.csv`."""
+        path = self.plot_dir / f'{self.pair_name}_{name}.csv'
+        df.to_csv(path, index=index)
+        print(f'Saved CSV: {path}')
+        return path
