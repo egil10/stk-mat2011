@@ -167,8 +167,8 @@ Two clean findings:
 
 ## 4.5 Sensitivity sweep (August 2024 only)
 
-For each pair we ran a 3×3×3 grid of `(z_quiet, z_volatile,
-danger_threshold)` on August 2024 with:
+For each pair we ran a 3×3×3 grid of `(z_quiet, z_volatile, danger_threshold)`
+on August 2024 with:
 
 - $z_q \in \lbrace 1.0, 1.3, 1.6 \rbrace$
 - $z_v \in \lbrace 2.0, 2.5, 3.5 \rbrace$

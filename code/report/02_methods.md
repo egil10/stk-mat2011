@@ -173,8 +173,8 @@ $$
 ### 2.4.2 Parameter estimation
 
 We fit by maximum likelihood with the EM algorithm in
-`statsmodels.tsa.MarkovAutoregression(order=1, k_regimes=2,
-switching_ar=True, switching_trend=True, switching_variance=True)`.
+`statsmodels.tsa.MarkovAutoregression` with `order=1`, `k_regimes=2`,
+`switching_ar=True`, `switching_trend=True`, `switching_variance=True`.
 
 The EM iterations alternate between:
 
@@ -377,9 +377,9 @@ Two things to notice:
    Danger, you close out and go flat at the next bar.
 
 Code: `_generate_positions` in `code/scripts/backtester.py` lines 18–20
-implement the panic kill (`if curr != 0.0 and not signals_allowed[i]:
-curr = 0.0`). The `signals_allowed` array for the AR strategy is the
-gate $G_t$ defined above.
+implement the panic kill (`if curr != 0.0 and not signals_allowed[i]: curr = 0.0`).
+The `signals_allowed` array for the AR strategy is the gate $G_t$ defined
+above.
 
 ### 2.5.4 MS-AR — z-score plus a soft gearbox
 
@@ -582,12 +582,12 @@ presentational.
 
 - **Total Return** $= \sum_t r_t$ (fraction). Reported as bps
   ($\times 10^4$).
-- **Annualised Return** $= \bar r \cdot F$ where $\bar r$ is the mean
+- **Annualised Return** $= \bar{r} \cdot F$ where $\bar{r}$ is the mean
   bar return.
 
 ### 2.7.3 Risk metrics
 
-- **Annualised Volatility** $= \hat\sigma_r \cdot \sqrt{F}$.
+- **Annualised Volatility** $= \hat{\sigma}_r \cdot \sqrt{F}$.
 - **Max Drawdown** $= \min_t \left( R_t - \max_{s \leq t} R_s \right)$.
 - **Max Drawdown Duration** = longest stretch of bars below the previous
   peak.
@@ -599,13 +599,13 @@ presentational.
 
 ### 2.7.4 Risk-adjusted metrics
 
-- **Sharpe** $= \dfrac{\bar r}{\hat\sigma_r} \sqrt F$.
-- **Sortino** $= \dfrac{\bar r}{\hat\sigma_{r,\text{downside}}} \sqrt F$
+- **Sharpe** $= \dfrac{\bar{r}}{\hat{\sigma}_r} \sqrt{F}$.
+- **Sortino** $= \dfrac{\bar{r}}{\hat{\sigma}_{r,\text{down}}} \sqrt{F}$
   where the downside std uses only $r_t < 0$.
 - **Calmar** $= \dfrac{\text{AnnReturn}}{|\text{MaxDD}|}$.
 - **Profit Factor** $= \dfrac{\sum_{r > 0} r}{\left|\sum_{r < 0} r\right|}$.
-- **Payoff Ratio** $= \dfrac{|\bar r_+|}{|\bar r_-|}$ where $\bar r_+$ is
-  the mean of positive bar returns and $\bar r_-$ the mean of negatives.
+- **Payoff Ratio** $= \dfrac{|\bar{r}_+|}{|\bar{r}_-|}$ where $\bar{r}_+$ is
+  the mean of positive bar returns and $\bar{r}_-$ the mean of negatives.
 - **Tail Ratio** $= \dfrac{|P_{95}(r)|}{|P_5(r)|}$ — symmetry of tails.
 
 ### 2.7.5 Trading metrics

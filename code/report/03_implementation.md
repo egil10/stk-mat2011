@@ -151,9 +151,9 @@ Implementation notes worth flagging:
   vectors `_regime_consts`, `_regime_ars`, `_regime_sigmas` so that
   `predict_oos` can compute the analytical posterior for any number of
   regimes, not just two.
-- **Walk-forward fold skipping.** If `len(train_df) ≤ coint_window +
-  z_window + 10` (i.e. not enough bars for both windows to fully
-  populate) or `len(test_df) < 5`, the day is silently skipped. In
+- **Walk-forward fold skipping.** If `len(train_df) <= coint_window + z_window + 10`
+  (i.e. not enough bars for both windows to fully populate)
+  or `len(test_df) < 5`, the day is silently skipped. In
   practice this only happens on the first $T_{\text{train}}$ days of a
   month — every full subsequent day comfortably exceeds the threshold
   with 500-tick bars.
@@ -241,8 +241,7 @@ A few subtleties:
   and don't apply any fee/slippage subtraction. This is intentional —
   Buy & Hold is the *zero-cost* benchmark.
 
-Output columns added to `self.data` (per strategy `S ∈ {Baseline, AR,
-MS_AR, BuyHold}`):
+Output columns added to `self.data` (per strategy `S` in `{Baseline, AR, MS_AR, BuyHold}`):
 
 - `Target_S` — one-bar-lagged position
 - `Return_S_Gross` — gross return
@@ -329,8 +328,8 @@ config and feeds it into every downstream call.
   a single month string (e.g. `'202408'`).
 - `run_months(months) -> summary_df` — runs `run` for every month in
   the list, stashes everything in `self.results` and `self.df_params`,
-  builds a tidy summary DataFrame with columns `Sharpe_Baseline /
-  Sharpe_AR / Sharpe_MS_AR / PnL_… / Trades_…` per month.
+  builds a tidy summary DataFrame with columns
+  `Sharpe_Baseline / Sharpe_AR / Sharpe_MS_AR / PnL_... / Trades_...` per month.
 - `summary()` — prints a per-strategy cross-month table for Sharpe,
   PnL bps and trade count, an MS-AR-minus-Baseline edge column, and a
   per-strategy win count.
