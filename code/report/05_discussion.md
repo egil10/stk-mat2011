@@ -96,9 +96,9 @@ whole month.
 
 ### 5.2.3 The honest comparison
 
-AR vs Baseline → AR wins by 50 bps. ✓ (the +24 Sharpe gap we headlined)
-AR vs Buy & Hold → BuyHold wins by **172 bps**. AR captures roughly
-20 % of the available drift.
+- **AR vs Baseline** → AR wins by 50 bps (the +24 Sharpe gap we headlined).
+- **AR vs Buy & Hold** → BuyHold wins by 172 bps. AR captures roughly
+  20 % of the available drift.
 
 There are two ways to read this:
 

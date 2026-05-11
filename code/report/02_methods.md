@@ -145,7 +145,7 @@ latent discrete regime indicator. The joint generative model is:
 
 $$
 S_t \,\big|\, S_{t-1},\, K_t = k
-\;\sim\; \mathcal N\!\left( c^{(k)} + \rho^{(k)} S_{t-1},\; (\sigma^{(k)})^2 \right)
+\;\sim\; \mathcal{N}\!\left( c^{(k)} + \rho^{(k)} S_{t-1},\; (\sigma^{(k)})^2 \right)
 $$
 
 $$
@@ -240,8 +240,8 @@ Instead we keep the per-regime AR(1) parameters $(c^{(k)}, \rho^{(k)},
 $$
 P(K_t = k \mid S_t, S_{t-1})
 \;=\;
-\frac{ \mathcal N\!\left(S_t;\; c^{(k)} + \rho^{(k)} S_{t-1},\; (\sigma^{(k)})^2\right) }
-     { \sum_{k'} \mathcal N\!\left(S_t;\; c^{(k')} + \rho^{(k')} S_{t-1},\; (\sigma^{(k')})^2\right) } .
+\frac{ \mathcal{N}\!\left(S_t;\; c^{(k)} + \rho^{(k)} S_{t-1},\; (\sigma^{(k)})^2\right) }
+     { \sum_{k'} \mathcal{N}\!\left(S_t;\; c^{(k')} + \rho^{(k')} S_{t-1},\; (\sigma^{(k')})^2\right) } .
 $$
 
 This is essentially the regime classifier viewed as a Gaussian mixture
@@ -423,7 +423,7 @@ band) and cautious (wide band) without ever fully disengaging.
 |----------|:---:|---|---|:---:|
 | **Buy & Hold** | yes | — | — | no |
 | **Baseline**   | no  | $z_q$ (constant) | always 1 | no |
-| **AR**         | no  | $z_q$ (constant) | $\mathbf 1\{\text{MR\_Prob}_t \geq 1-\delta\}$ | yes (binary) |
+| **AR**         | no  | $z_q$ (constant) | $\mathbf{1}\{\text{MR\_Prob}_t \geq 1-\delta\}$ | yes (binary) |
 | **MS-AR**      | no  | $\text{MR\_Prob}_t \cdot z_q + \text{Danger\_Prob}_t \cdot z_v$ | always 1 | yes (continuous) |
 
 A single position-rule template covers Baseline / AR / MS-AR:
@@ -431,9 +431,9 @@ A single position-rule template covers Baseline / AR / MS-AR:
 $$
 P_t \;=\;
 \begin{cases}
-0 & \text{if } G_t = 0 \\[2pt]
-\mathrm{sign}(-Z_t) & \text{if } P_{t-1} = 0,\; G_t = 1,\; |Z_t| > E_t \\[2pt]
-0 & \text{if } P_{t-1} \neq 0,\; |Z_t| \leq z_x \\[2pt]
+0 & \text{if } G_t = 0 \\
+\mathrm{sign}(-Z_t) & \text{if } P_{t-1} = 0,\; G_t = 1,\; |Z_t| > E_t \\
+0 & \text{if } P_{t-1} \neq 0,\; |Z_t| \leq z_x \\
 P_{t-1} & \text{otherwise.}
 \end{cases}
 $$
@@ -495,7 +495,7 @@ of opening — fully causal).
 A trade is initiated whenever the target position changes:
 
 $$
-T_t \;=\; \mathbf 1\!\left\{ \mathrm{Target}_t \neq \mathrm{Target}_{t-1} \right\} .
+T_t \;=\; \mathbf{1}\!\left\{ \mathrm{Target}_t \neq \mathrm{Target}_{t-1} \right\} .
 $$
 
 Two cost terms per trade:
@@ -558,14 +558,14 @@ All metrics are computed by `TEARSHEET._calc_metrics`
 We use a **tick-clock annualisation factor**
 
 $$
-F \;=\; 252 \times 24 \times 60 \;=\; 362{,}880,
+F \;=\; 252 \times 24 \times 60 \;=\; 362\,880,
 $$
 
 interpreted as "minutes of trading per year if every bar is a minute".
 For 500-tick bars on a liquid pair this is roughly the bar rate during
 active hours, so $F$ is a reasonable scaling for ratio statistics.
 
-**Important caveat.** Annualising a bar-clock Sharpe with $F = 362{,}880$
+**Important caveat.** Annualising a bar-clock Sharpe with $F = 362\,880$
 gives a number that is **$\sqrt{F/252} \approx 38\times$ larger** than
 the same strategy's daily-returns Sharpe. The cross-strategy ordering
 within a month-pair is preserved. The absolute level is not directly
