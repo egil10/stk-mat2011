@@ -15,7 +15,7 @@ pairs trading. We compared four strategies on a 3-day-rolling /
 4. **MS-AR** — z-score pairs trade with soft probability-weighted
    entry band.
 
-Three principal empirical results:
+Four principal empirical results:
 
 1. **MS-AR is uniformly better than AR** as a way to use the HMM
    (8 / 9 month-pairs in the main test; 47 / 81 cells in the sensitivity
@@ -24,18 +24,28 @@ Three principal empirical results:
 2. **Baseline is best overall in cleanly cointegrated months** (4 / 6
    wins outside NOKSEK). Adding any HMM-based filter to a clean,
    mean-reverting pair tends to destroy value.
-3. **The regime filter (AR specifically) is dramatically better in
-   months that contain a genuine, persistent regime switch.** In our
-   one example of such a month (GBPEUR August 2024), AR outperformed
-   Baseline by ~24 Sharpe points (Sharpe +23.5 vs −0.5) by cutting
-   80 % of trades and keeping only the high-quality ones.
+3. **The regime filter (AR specifically) outperforms Baseline in a
+   regime-switching month**, but not in absolute terms. In GBPEUR
+   August 2024, AR cut 80 % of trades and beat Baseline by 50 bps
+   (Sharpe gap +24), **but Buy & Hold beat AR by 172 bps in the same
+   month** — the spread drifted up 2 % and the filter's value was
+   "trade less, lose less to the drift", not "capture an edge".
+4. **No traded strategy beat Buy & Hold in absolute PnL in any of
+   the 9 month-pair cells.** Baseline beat BuyHold by a large margin
+   in cleanly-cointegrated months (e.g. GBPEUR-Sep24 +322 vs +151
+   bps), but in those months the strategy was running with the drift,
+   not against it.
 
 The clean version of the conclusion: the HMM regime filter has
-*conditional* value. Used as a soft gearbox (MS-AR) it does little
-harm in calm markets and a little good in stress. Used as a hard kill
-(AR) it does substantial harm in calm markets and substantial good in
-persistent stress. We do not have a reliable way to know in advance
-which regime mode a given month will fall into.
+*conditional, defensive* value. As a soft gearbox (MS-AR) it does
+little harm in calm markets and a little good when the spread
+behaves badly. As a hard kill (AR) it does substantial harm in calm
+markets and substantial good (relative to Baseline) when the spread
+drifts persistently. **Neither variant turns a losing pairs trade
+into a winning one** — the underlying z-score rule is sign-blind to
+drift direction, and the HMM cannot fix that. The filter is capital
+preservation; the alpha (or lack thereof) is in the underlying
+cointegration premise.
 
 ---
 
@@ -132,48 +142,59 @@ which regime mode a given month will fall into.
 
 In order of decreasing priority:
 
-1. **Drill into the GBPEUR-August-2024 case study.** Plot
+1. **Add a drift/stationarity gate upstream of the trading rule.**
+   The BuyHold analysis (§4.6, §5.2) shows that every "profitable"
+   month was a drift month — the strategies that won did so partly by
+   *running with the drift*, and the strategies that lost did so by
+   *fighting it*. A test for spread stationarity over the training
+   window (e.g. ADF / KPSS / a slope test on the rolling spread) could
+   gate the trading rule entirely: if the spread is non-stationary,
+   either abstain or switch to a directional rule. This is the
+   intervention most likely to materially improve real-money
+   performance.
+
+2. **Drill into the GBPEUR-August-2024 case study.** Plot
    `df_params['Danger_Variance']`, the smoothed Danger probability
-   series, and the spread itself for the full month. Identify the
-   calendar windows where the HMM flagged danger and confirm they
-   coincide with real market events (the UK budget, Bank of England
-   surprises, ECB decisions, etc.). This is the most interesting
-   single empirical result in the project and deserves a focused
-   write-up.
+   series, the spread itself, and BuyHold's running PnL for the full
+   month. Identify the calendar windows where the HMM flagged danger
+   and confirm they coincide with real market events (UK budget, BoE
+   surprises, ECB decisions). Quantify how much of the +215.6 bps
+   drift was captured / lost by each strategy.
 
-2. **Test more months specifically picked for stress.** Examples:
-   September 2008 (Lehman), August 2015 (CNY devaluation), March
-   2020 (COVID), the days around Yen interventions (April–May 2024),
-   the BOE pension-LDI crisis (September–October 2022). The hypothesis
-   is that the HMM filter pays off during macro stress and rarely
-   otherwise. With 20+ stress months we could begin to estimate the
-   *rate* at which the filter helps.
+3. **Test more months specifically picked for stress AND for clean
+   stationarity.** Stress examples: September 2008 (Lehman), August
+   2015 (CNY devaluation), March 2020 (COVID), April–May 2024 (Yen
+   intervention), September–October 2022 (BoE LDI crisis). Stationary
+   examples: long, quiet, low-vol windows in EURUSD or other liquid
+   majors. The point is to characterise the filter's performance as a
+   function of stationarity *and* persistence, not just persistence.
 
-3. **Build a meta-strategy that estimates regime persistence and
-   switches between hard kill and soft gearbox dynamically.** The
-   transition-matrix diagonal $p_{22}$ (Danger-stay probability) is
-   already estimated per fold. When $p_{22}$ is high (regime is
-   persistent), use AR; when $p_{22}$ is moderate (transient flickers
-   likely), use MS-AR. Calibrate the persistence threshold on a
-   training-only validation set.
+4. **Build a meta-strategy that selects gear-shift mode based on
+   regime persistence AND drift sign.** Persistence comes from the
+   transition-matrix diagonal $p_{22}$. Drift sign comes from a slope
+   test on the spread's rolling regression. The meta-rule:
+   stationary calm → Baseline; transient stress → MS-AR; persistent
+   stress with drift → AR; non-stationary drift → trend-follow or
+   abstain.
 
-4. **Regime-aware cost modelling.** Replace the constant 0.5 bps fee
+5. **Regime-aware cost modelling.** Replace the constant 0.5 bps fee
    plus current half-spread with a Danger-regime-aware slippage
    estimate. Spreads in stressed regimes empirically widen 2–5×.
    This is the single biggest source of bias in the current
-   transaction-cost story.
+   transaction-cost story and would penalise Baseline more (it's the
+   one trading through the danger).
 
-5. **Extend to more pairs.** EURUSD/USDJPY, USDCHF/EURCHF,
+6. **Extend to more pairs.** EURUSD/USDJPY, USDCHF/EURCHF,
    AUDUSD/CADUSD are obvious next candidates. Several already have
    tick data on disk in `code/data/processed`.
 
-6. **Try a Hidden Semi-Markov Model (HSMM).** Instead of a geometric
+7. **Try a Hidden Semi-Markov Model (HSMM).** Instead of a geometric
    regime-duration distribution implicit in the Markov chain, fit an
    explicit duration distribution per regime. This could give a
    cleaner "long-stay vs short-stay" signal than the current Markov
-   chain.
+   chain — directly informative for the meta-strategy in (4).
 
-7. **Bootstrap-based statistical inference.** Replace the tick-clock
+8. **Bootstrap-based statistical inference.** Replace the tick-clock
    Sharpe with a block-bootstrap distribution of the strategy's mean
    return. Compute confidence intervals on the MS-AR-minus-Baseline
    gap, in absolute terms and corrected for multiple testing across
@@ -184,47 +205,70 @@ In order of decreasing priority:
 ## 6.5 The clean one-paragraph version, for a paper
 
 > In high-frequency pairs trading on liquid 2024–2025 FX data, a
-> two-regime Markov-switching AR(1) regime classifier adds value as a
-> **soft gearbox** (continuous probability-weighted entry threshold)
-> rather than as a **hard kill switch** (binary liquidation on high
-> Danger probability): the gearbox uniformly dominates the kill
-> switch in 8 of 9 month-pair experiments and 47 of 81
-> sensitivity-sweep cells. However, neither HMM-based variant beats
-> the unfiltered z-score baseline in the majority of cleanly
-> cointegrated months. The hard-kill filter outperforms in exactly
-> one month (GBPUSD/EURUSD, August 2024), in which it correctly
-> identifies a persistent high-variance regime, avoids 80 percent of
-> the baseline's trades, and captures a Sharpe of +23.5 against the
+> two-regime Markov-switching AR(1) regime classifier adds value
+> primarily as a **soft gearbox** (continuous probability-weighted
+> entry threshold) rather than as a **hard kill switch** (binary
+> liquidation on high Danger probability): the gearbox dominates the
+> kill switch in 8 of 9 month-pair experiments and 47 of 81
+> sensitivity-sweep cells. Neither HMM-based variant beats the
+> unfiltered z-score baseline in the majority of cleanly cointegrated
+> months. The hard-kill filter outperforms the baseline in exactly
+> one month (GBPUSD/EURUSD, August 2024), in which it sat in cash 97
+> percent of the time and captured a Sharpe of +23.5 against the
 > baseline's −0.5 — robust across 25 of 27 parameter-grid cells.
-> We conclude that the value of a regime filter in pairs trading is
-> conditional on *regime persistence*: persistent stress regimes
-> reward hard kills, transient regime flickers reward soft gating,
-> and clean cointegration rewards no filter at all. A natural
-> direction is a duration-aware meta-strategy that estimates regime
-> persistence (via the transition-matrix diagonal) and dynamically
-> selects between gear-shift modes.
+> Crucially, in that same month a passive long Buy & Hold of the
+> spread captured +215.6 bps while the best filtered strategy
+> captured only +44.0 bps, indicating that the filter's contribution
+> was **defensive damage control during a directional drift**, not
+> alpha capture. Across all 9 month-pair cells no traded strategy
+> outperformed Buy & Hold in absolute PnL terms, and the negative
+> control (EURNOK/EURSEK August 2025) demonstrated that the
+> symmetric z-score trading rule systematically loses money to
+> directional drift even when passive exposure makes money. We
+> conclude that the HMM regime filter is correctly *detecting*
+> high-variance regimes but the underlying z-score trading rule is
+> sign-blind to drift direction, so the filter delivers capital
+> preservation rather than alpha capture. A natural next step is a
+> duration- and direction-aware meta-strategy that estimates both
+> regime persistence (via the transition-matrix diagonal) and drift
+> sign (via a slope test on the spread), and dynamically switches
+> between trading modes — short-mean-reversion, abstain, or trend-
+> follow — accordingly.
 
 ---
 
 ## 6.6 A short personal note for the writer
 
-Looking at the spread of nine cells in the headline Sharpe table, you
-can read two stories:
+Looking at the spread of nine cells once you include Buy & Hold, there
+are three stories to tell:
 
-- A **disappointing one**: "regime filters don't beat the baseline".
-- A **more interesting one**: "regime filters have one shape of
-  pay-off (rare, large, conditional on persistence), and we
-  characterised when and why."
+- A **disappointing one**: "regime filters don't beat the baseline,
+  and in our one stress month none of the trading strategies even
+  matched a passive long".
+- A **constructive one**: "regime filters detect what they're supposed
+  to detect, but the underlying trading rule is the bottleneck — the
+  z-score is sign-blind to drift, so the filter delivers damage
+  control rather than alpha. The next experiment is to fix the
+  trading rule."
+- An **honest one** (the synthesis): "across 9 month-pair experiments
+  the most consistent finding is that the spread drifts, the
+  symmetric z-rule fights the drift, and any pairs-trading framework
+  on this data is competing against passive exposure rather than
+  capturing reversion. We characterised when and why each of the
+  three strategies wins or loses, and identified the trading rule
+  itself as the bottleneck."
 
-The second story is the publishable one. It tells the reader exactly
-what *would* have to change about the deployment context for the
-filter to be worth running, and gives a clear next experiment (more
-stress months, persistence-aware meta-strategy). That's the version
-to write up.
+The third story is the most publishable. It's a clean methodological
+finding (the HMM works, the trading rule doesn't), it points
+explicitly at the next experiment (drift-aware gating before the
+trading rule), and it doesn't oversell the AR result by ignoring
+BuyHold. That's the version to write up.
 
-Either way, the project succeeded at what it was actually testing:
-not "can MS-AR make money" (we don't have the sample size to answer
-that) but "what is the structural relationship between an HMM regime
-filter and a baseline z-score pairs trade". We have a clean
-characterisation of that relationship, with one striking single
-example of when the filter dominates and a clear mechanism for why.
+The project succeeded at what it was actually testing: not "can
+MS-AR make money" (we don't have the sample size for that) but
+"what is the structural relationship between an HMM regime filter
+and a baseline z-score pairs trade, and where are the boundaries of
+that relationship". We have a clean answer to that — including the
+honest acknowledgement that the BuyHold benchmark beats every
+trading strategy in the one month the filter "wins", which is the
+most informative limitation in the dataset.

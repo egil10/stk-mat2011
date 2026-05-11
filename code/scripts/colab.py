@@ -38,6 +38,23 @@ def _clone_or_pull():
         subprocess.run(['git', '-C', REPO_ROOT, 'pull'], check=True)
 
 
+# Names of project modules whose cached versions in sys.modules need to be
+# invalidated after a git pull, so that the next `import` picks up the fresh
+# source.  Without this, re-running the bootstrap cell silently keeps using
+# the previous run's stale code (Python only loads each module once).
+_PROJECT_MODULES = {
+    'month', 'spread', 'engine', 'backtester', 'tearsheet',
+    'screener', 'plotting', 'descriptive', 'wfo', 'synthetic',
+}
+
+
+def _invalidate_project_modules():
+    """Drop any cached project modules so the next import re-reads from disk."""
+    for mod in list(sys.modules):
+        if mod in _PROJECT_MODULES:
+            del sys.modules[mod]
+
+
 def _symlink_drive_data():
     """Replace the empty data/processed in the clone with a Drive symlink."""
     if os.path.isdir(REPO_DATA) and not os.path.islink(REPO_DATA):
@@ -63,6 +80,7 @@ def setup(notebook_dir, verbose=True):
     _mount_drive()
     _clone_or_pull()
     _symlink_drive_data()
+    _invalidate_project_modules()
 
     scripts_path = f'{REPO_ROOT}/code/scripts'
     if scripts_path not in sys.path:

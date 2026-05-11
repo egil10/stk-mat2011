@@ -24,7 +24,13 @@ presentational rather than as Sharpes comparable to published values.
 
 ## 4.1 The headline table — Sharpe by pair × month
 
-| Pair | Month | Baseline | AR | MS-AR | Winner |
+(Tick-clock annualised, using `MONTH`'s `ann_factor = 252 · 24 · 60`. The
+TEARSHEET tables in the notebooks use a slightly different bar-clock
+ann factor estimated from the month's actual span; the per-strategy
+*ranking* is identical, the absolute level is ~14 % higher here.
+See §2.7.1 and §4.6 for details.)
+
+| Pair | Month | Baseline | AR | MS-AR | Winner among traded |
 |---|---:|---:|---:|---:|---|
 | AUDNZD | 202408 |  −6.36 |  −7.49 |  −5.14 | **MS-AR** (least bad) |
 | AUDNZD | 202409 |  22.16 |   5.65 |  20.10 | **Baseline** |
@@ -35,6 +41,9 @@ presentational rather than as Sharpes comparable to published values.
 | NOKSEK | 202408 | −43.87 | −87.82 | −37.44 | **MS-AR** (least bad) |
 | NOKSEK | 202409 | −52.10 |−103.30 | −44.07 | **MS-AR** (least bad) |
 | NOKSEK | 202508 | −43.35 | −54.48 | −31.45 | **MS-AR** (least bad) |
+
+*See §4.6 for Buy & Hold side-by-side — it ends up being the actual
+winner in several cells once we include it.*
 
 ### Per-strategy win counts
 
@@ -55,17 +64,42 @@ on understanding that one cell.
 
 ## 4.2 PnL bps by pair × month
 
-| Pair | Month | Baseline | AR | MS-AR |
-|---|---:|---:|---:|---:|
-| AUDNZD | 202408 |   −98.4 |   −53.9 |   −65.5 |
-| AUDNZD | 202409 |   312.9 |    27.3 |   220.1 |
-| AUDNZD | 202508 |   200.8 |   −66.3 |    13.7 |
-| GBPEUR | 202408 |    −5.9 |    44.0 |    39.1 |
-| GBPEUR | 202409 |   321.8 |    50.4 |   243.8 |
-| GBPEUR | 202508 |    52.4 |  −106.7 |    11.4 |
-| NOKSEK | 202408 | −2 287.7 | −2 117.5 | −1 583.0 |
-| NOKSEK | 202409 | −2 202.4 | −2 074.4 | −1 531.9 |
-| NOKSEK | 202508 |   −664.9 |   −255.5 |   −349.4 |
+Buy & Hold is the zero-cost passive benchmark (always long the spread).
+It captures the directional drift of the spread over the month, with no
+trading and no fees.
+
+| Pair | Month | **BuyHold** | Baseline | AR | MS-AR |
+|---|---:|---:|---:|---:|---:|
+| AUDNZD | 202408 |    +13.1 |   −98.4 |   −53.9 |   −65.5 |
+| AUDNZD | 202409 |    +99.2 |   312.9 |    27.3 |   220.1 |
+| AUDNZD | 202508 |   +184.5 |   200.8 |   −66.3 |    13.7 |
+| GBPEUR | 202408 |   **+215.6** |    −5.9 |    44.0 |    39.1 |
+| GBPEUR | 202409 |   +151.1 |   321.8 |    50.4 |   243.8 |
+| GBPEUR | 202508 |    +55.8 |    52.4 |  −106.7 |    11.4 |
+| NOKSEK | 202408 |   −267.8 | −2 287.7 | −2 117.5 | −1 583.0 |
+| NOKSEK | 202409 |    −57.0 | −2 202.4 | −2 074.4 | −1 531.9 |
+| NOKSEK | 202508 |   **+110.1** |   −664.9 |   −255.5 |   −349.4 |
+
+Five things jump out of this table that are easy to miss in the Sharpe
+view:
+
+1. **BuyHold beat every strategy in GBPEUR-Aug-24** (+215.6 vs +44.0
+   best). The spread drifted up 2 %; AR's "win" was *relative to a
+   losing Baseline*, not absolute capture of the available move.
+2. **In NOKSEK-Aug-25 BuyHold made money** while every traded strategy
+   lost. Passive long would have made +110 bps; the strategies turned
+   that environment into −250 to −665 bps of loss.
+3. **In AUDNZD-Sep-24 and GBPEUR-Sep-24 Baseline beat BuyHold by a wide
+   margin** (+312 vs +99 and +322 vs +151). These are the months where
+   z-score pairs trading actually *added alpha* on top of the drift —
+   clean cointegration with profitable mean-reversion opportunities.
+4. **AUDNZD-Aug-25 and GBPEUR-Aug-25 are almost ties between Baseline
+   and BuyHold** (200 vs 184 and 52 vs 55). Whatever pairs-trading edge
+   exists is roughly cancelled by costs; the strategies barely matched
+   passive.
+5. **NOKSEK-Aug-24 and Sep-24 are catastrophic on all axes.** BuyHold
+   lost too (−267 and −57 bps), but the trading strategies amplified
+   the damage roughly **10×** via leveraged shorts and churn.
 
 Two observations:
 
@@ -168,25 +202,64 @@ market dynamics.
 
 ## 4.6 Buy & Hold benchmarks
 
-The passive long-spread benchmark. Useful for distinguishing "spread
-drifted in our favour" months from "trading actually added value"
-months. (Values populated from the per-month `TEARSHEET` output of the
-notebooks.)
+Buy & Hold is the passive long-spread benchmark — open one long at
+$t=0$, hold to month end, no trades, no fees. It pins down whether the
+spread had any directional drift over the month and, when it did,
+how much of that drift the traded strategies captured (or destroyed).
 
-| Pair | Month | BuyHold Sharpe | BuyHold PnL bps |
-|---|---:|---:|---:|
-| AUDNZD | 202408 | *populate from tearsheet* | *…* |
-| AUDNZD | 202409 | *…* | *…* |
-| AUDNZD | 202508 | *…* | *…* |
-| GBPEUR | 202408 | *…* | *…* |
-| GBPEUR | 202409 | *…* | *…* |
-| GBPEUR | 202508 | *…* | *…* |
-| NOKSEK | 202408 | *…* | *…* |
-| NOKSEK | 202409 | *…* | *…* |
-| NOKSEK | 202508 | *…* | *…* |
+Below the Sharpe is reported on TEARSHEET's per-month ann factor (bars
+per year estimated from the calendar span), which is the convention
+the notebooks actually print. The strategy Sharpes in §4.1 use
+`MONTH`'s constant $F = 252 \cdot 24 \cdot 60$ — roughly 14 % higher
+in absolute terms. *Rankings within a row are unaffected.*
 
-The `TEARSHEET.generate_report()` output already includes the BuyHold
-column for every month — see the tearsheets cell of each notebook.
+| Pair | Month | BuyHold PnL bps | BuyHold Sharpe (TS) | Spread direction |
+|---|---:|---:|---:|---|
+| AUDNZD | 202408 |   +13.1 |  +0.21 | flat |
+| AUDNZD | 202409 |   +99.2 |  +1.52 | up |
+| AUDNZD | 202508 |  +184.5 |  +3.60 | up (strong) |
+| GBPEUR | 202408 |  **+215.6** |  **+4.83** | up (very strong) |
+| GBPEUR | 202409 |  +151.1 |  +2.67 | up |
+| GBPEUR | 202508 |   +55.8 |  +1.37 | up (mild) |
+| NOKSEK | 202408 |  −267.8 |  −3.35 | **down** (strong) |
+| NOKSEK | 202409 |   −57.0 |  −0.75 | down (mild) |
+| NOKSEK | 202508 |  +110.1 |  +2.12 | up |
+
+### 4.6.1 What the BuyHold column tells us
+
+- **Most "calm cointegration months" are drift months.** AUDNZD-Sep24,
+  AUDNZD-Aug25, GBPEUR-Sep24, GBPEUR-Aug25, GBPEUR-Aug24 all show a
+  positive drift in the spread. The cointegration relationship isn't
+  pinning the spread to a fixed mean — it's pinning a slowly-rising
+  curve. Baseline's z-score can still profit from oscillations around
+  that drift, which is why it tends to outperform BuyHold in calm
+  months (Baseline 322 vs BuyHold 151 in GBPEUR-Sep24, for instance).
+- **The single "AR-wins" month is also a drift month.** In
+  GBPEUR-Aug24 the spread drifted up by 2 %, far more than in adjacent
+  months. Pairs trading shorts the drift (z-scores go high), so
+  Baseline lost; AR sat in cash 97 % of the time and ended +44 bps;
+  MS-AR sat partially out and ended +39 bps. **Buy & Hold beat them all
+  with +215.6 bps.** AR's "win vs Baseline" is real, but AR is still
+  capturing only ~20 % of what doing nothing would have earned.
+- **NOKSEK-Aug-25 is the most damning negative control.** BuyHold made
+  +110 bps — the spread *did* mean-revert or drift in our favour — and
+  every trading strategy lost. This proves the strategies' losses on
+  NOKSEK aren't "the pair is hopeless"; they're "the trading rules
+  systematically take the wrong side". The z-score rule shorts when
+  z > 1.3 expecting reversion; in NOKSEK-Aug-25 the rare positive-drift
+  windows happened to coincide with high z, so every short into the
+  rally got stopped at the EOD flat with a loss.
+- **AUDNZD-Aug-24 is the only "flat-spread" month** (+13 bps drift,
+  TS Sharpe +0.21). This is where pairs trading *should* work cleanly,
+  yet all three strategies lose −53 to −98 bps. The 22 trading days
+  evidently contained enough microstructure noise to drown the
+  reversion signal.
+
+The combined picture: the spread is rarely mean-reverting around a
+fixed level on these tick-bar samples. It drifts. The strategies are
+implicitly betting against the drift, and their relative performance
+within a month is more about *how much they avoided the drift damage*
+than about *how well they captured reversion*.
 
 ---
 

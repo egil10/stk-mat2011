@@ -107,14 +107,20 @@ The scope of this project is deliberately narrow:
 This is a controlled experiment, not a production strategy. The point is
 to test a single methodological hypothesis cleanly.
 
-## 1.5 What we found, in two sentences
+## 1.5 What we found, in three sentences
 
 The soft gearbox (MS-AR) is uniformly a better way to use the HMM than the
-hard kill (AR): MS-AR beats AR in 8 of 9 month-pairs and in 56 of 81
-sensitivity-sweep cells. However, neither HMM-based strategy beats the
-un-filtered Baseline in calm cointegration months — the regime filter pays
-off only in months that contain a *genuine, persistent* regime switch, of
-which we found exactly one (GBPUSD vs EURUSD, August 2024) in our 9
-month-pair experiments.
+hard kill (AR): MS-AR beats AR in 8 of 9 month-pairs and in 47 of 81
+sensitivity-sweep cells. Neither HMM-based strategy beats the
+un-filtered Baseline in calm cointegration months, and **none of the
+three trading strategies beat passive Buy & Hold of the spread in the
+single month where the regime filter "wins" (GBPUSD/EURUSD, August
+2024) — the spread drifted up 2 % that month and the filter's value
+was in *trading less* during a directional move, not in capturing it.**
+Across all 9 month-pairs we therefore find that the HMM regime
+classifier reliably *detects* something real — high-variance regimes —
+but the underlying z-score trading rule is structurally unable to
+capitalise on what's detected, so the filter's contribution is damage
+control rather than alpha capture.
 
-The rest of this report unpacks those two sentences.
+The rest of this report unpacks those three sentences.

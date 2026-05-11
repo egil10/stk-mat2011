@@ -42,51 +42,104 @@ enough to justify the cost of switching off.
 
 ## 5.2 When does the regime filter pay? The GBPEUR August 2024 case study
 
-Look closely at the **GBPEUR August 2024** row from §4:
+Look closely at the **GBPEUR August 2024** row from §4, now with the
+Buy & Hold column included:
 
-| Strategy | Sharpe | PnL bps | Trades |
-|---|---:|---:|---:|
-| Buy & Hold | (populate) | (populate) | — |
-| Baseline   | −0.49 |  −5.9 |  93 |
-| **AR**     | **+23.53** | **+44.0** | **19** |
-| MS-AR      | +4.39 | +39.1 |  46 |
+| Strategy | Sharpe (MONTH) | Sharpe (TS) | PnL bps | Trades | Exposure |
+|---|---:|---:|---:|---:|---:|
+| **Buy & Hold** | — | **+4.83** | **+215.6** |   0 | 99.8 % |
+| Baseline       | −0.49 | −0.16 |  −5.9 |  94 | 70.0 % |
+| **AR**         | **+23.53** | +7.72 | +44.0 | **19** | **3.2 %** |
+| MS-AR          | +4.39 | +1.44 | +39.1 |  46 | 37.1 % |
 
-This is **the only month in our dataset where the regime filter
-actually fires and helps**. Three facts together explain it:
+This is the most empirically interesting cell in the dataset, but the
+BuyHold column changes the headline from "AR captured a regime switch"
+to something more nuanced.
 
-1. **Baseline's PnL is essentially flat.** −0.49 Sharpe, −5.9 bps, 93
-   trades — about three trades per trading day. The spread is *not*
-   cleanly mean-reverting in this month. The un-filtered z-score gets
-   whipsawed and barely scrapes even after costs.
-2. **AR cuts 80 % of trades.** 19 trades instead of 93. The HMM is
-   correctly identifying a persistent high-variance regime — most of
-   the month — and the hard kill keeps the strategy in cash through
-   it.
-3. **The 19 trades AR keeps are high-quality.** 19 round trips earning
-   +44.0 bps is ~2.3 bps per round trip, vs Baseline's near-zero
-   average. The filter isn't just *avoiding* bad trades; it's keeping
-   the actually-good ones.
+### 5.2.1 The real driver: the spread drifted, hard
 
-In other words, GBPEUR-August-2024 is a **genuine regime-switching
-month** for that pair. The MS-AR(1) detected a persistent shift in
-spread dynamics, and the hard kill exploited it.
+BuyHold making **+215.6 bps** with zero trades means the spread
+$\log A - \beta \log B$ moved roughly 2 percent in one direction over
+the month. That is huge for a cointegrated pair on a 22-day window. It
+implies the cointegration relationship itself shifted — either β moved
+or the long-run mean repriced.
 
-**Why does MS-AR fail in this same month?** Because the gearbox isn't
-aggressive enough. Even at high Danger probability the entry threshold
-widens only to $z_v = 2.5$ — apparently still narrow enough that 46
-trades go through, and the average quality is much lower than AR's
-19. The soft gearbox preserves trade frequency at the cost of trade
-quality.
+Pairs trading is built on the assumption that the spread oscillates
+around a stable mean. When the mean walks away from you, the z-score
+rises and rises, and the strategy keeps opening shorts that never come
+back. **That's what wrecks the Baseline in this month.** 94 trades,
+exposure 70 % of bars, almost all shorts against a rising spread,
+ending −5.9 bps after costs.
 
-The sensitivity sweep confirms this isn't a parameter artefact: in
-25 / 27 grid cells for this pair-month, AR > MS-AR. We tried widening
-$z_v$ to 3.5 — AR still wins. We tried tightening $\delta$ to 0.15
-(killing more aggressively) — AR still wins.
+### 5.2.2 What AR is actually doing
 
-The lesson from this single cell: **for genuinely persistent regime
-shifts, a hard kill outperforms a soft gearbox**. The cost-benefit
-trade-off flips when the bad regime persists for weeks rather than
-minutes.
+The HMM was not "predicting a Lehman-style flash regime". It was
+detecting *high variance and persistence in the spread*, which is
+exactly what a strongly-drifting spread looks like to a two-regime
+classifier: the Danger regime fires because the AR(1) dynamics during
+the drift have a larger innovation variance than during the calm
+non-drift baseline of the previous training days.
+
+When that gate fires and stays fired:
+
+- AR's exposure collapses from Baseline's 70 % to **3.2 %**. The
+  strategy sits in cash 97 % of the time.
+- The 19 trades it does take are the rare windows where the HMM
+  briefly flips back to MR — short reversion bursts during the drift.
+- These average ~2.3 bps per round trip; small but consistently
+  positive.
+
+So AR doesn't *capture* the drift. It **avoids fighting it**. The
+trade-cost savings from being out plus the small reversion-burst
+profits net to +44 bps. Baseline, by contrast, fought the drift the
+whole month.
+
+### 5.2.3 The honest comparison
+
+AR vs Baseline → AR wins by 50 bps. ✓ (the +24 Sharpe gap we headlined)
+AR vs Buy & Hold → BuyHold wins by **172 bps**. AR captures roughly
+20 % of the available drift.
+
+There are two ways to read this:
+
+- **Charitably**: AR is a *pairs-trading strategy*, not a directional
+  one. Comparing it to directional Buy & Hold isn't fair — the user
+  who runs AR isn't choosing between AR and BuyHold; they're choosing
+  between AR and other pairs-trading variants. Among those, AR wins
+  clearly.
+- **Sceptically**: if BuyHold beats AR by 172 bps, the right question
+  isn't "is the regime filter helpful?" but "why is the cointegration
+  premise applicable here at all?" The strongest argument for pairs
+  trading is when the spread is stationary; when the spread
+  half-trends 200 bps in a month, you'd rather just be long it.
+
+The sceptical reading suggests a richer experimental design: every
+trading-day's decision could include an upstream "is this even a
+cointegrated regime?" test, and abstain entirely (or switch to a
+trend-following stance) when the answer is no. That's a different
+project from what we ran.
+
+### 5.2.4 Why MS-AR fails in this exact month
+
+MS-AR's gearbox widens the entry band but the bot still trades 46
+times (vs AR's 19, vs Baseline's 94). Each trade fights the drift to
+some degree. Net: +39 bps — better than Baseline, worse than AR.
+
+The sweep confirms it isn't a knob-tuning artefact: in **25 / 27**
+grid cells for GBPEUR-Aug-24, AR > MS-AR. Even widening $z_v$ to 3.5
+or tightening $\delta$ to 0.15 doesn't get MS-AR past AR. The hard
+gate is structurally better here because the bad regime is the entire
+month — partial-throttle is still too much throttle when the path
+itself is the problem.
+
+### 5.2.5 The lesson, restated
+
+For **persistent drift regimes**, hard-kill (AR) beats soft-gating
+(MS-AR), and both beat un-filtered Baseline, **but none of them beats
+just being long the spread**. The HMM has detected the broken pairs
+premise but the trading rule isn't capable of pivoting from "short
+mean reversion" to "ride the drift". The filter is doing capital
+preservation, not alpha capture.
 
 ---
 
@@ -156,49 +209,86 @@ switch — which, by construction, you don't usually know in advance.
 
 ---
 
-## 5.5 The NOKSEK story: a negative control
+## 5.5 The NOKSEK story: a negative control with a twist
 
 EURNOK/EURSEK loses money under every strategy in every month
 (Baseline: −44 to −52 Sharpe; AR: −54 to −103 Sharpe; MS-AR: −31 to
-−44 Sharpe). Why?
+−44 Sharpe). The Buy & Hold benchmark tells the deeper story:
+
+| Month | BuyHold bps | Baseline bps | AR bps | MS-AR bps |
+|---|---:|---:|---:|---:|
+| 202408 |   −267.8 | −2 287.7 | −2 117.5 | −1 583.0 |
+| 202409 |    −57.0 | −2 202.4 | −2 074.4 | −1 531.9 |
+| **202508** | **+110.1** | **−664.9** | **−255.5** | **−349.4** |
 
 The pair is the textbook Scandi cross-rate trade — both currencies
-nominally track the EUR via similar economic mechanisms, so the spread
+nominally track the EUR via similar mechanisms, so the spread
 "should" be cointegrated. Empirically in 2024–25, the Norwegian Krone
-and Swedish Krona have moved out of sync, driven by their own central
+and Swedish Krona moved out of sync, driven by their own central
 bank reaction functions and divergent commodity exposures
 (NOK ↔ Brent crude, SEK ↔ industrial metals). The cointegrating
-relationship is unstable; the half-life of mean reversion, if it
-exists at all on these months, is on the order of weeks.
+relationship is unstable.
 
-When the underlying spread doesn't mean-revert, **no z-score-based
-strategy can win**. The "mean" the z-score is normalising against is a
-moving target.
+### 5.5.1 Two failure modes side by side
 
-The breakdown of strategies in NOKSEK:
+**Aug & Sep 2024 — drift against pairs trading.** The spread drifts
+*down* (BuyHold −268 and −57 bps respectively). Pairs trading
+interpreted persistently negative z-scores as "buy the discount", went
+long, and was carried down with the spread for the rest of the month.
+Strategies amplified BuyHold's loss roughly **10×** via leveraged longs
+and churn. The HMM did its job — Danger probability is high throughout
+both months — but the kill gate just delays the long-entry; it doesn't
+prevent it. So AR loses about the same as Baseline (slightly less
+exposure, similar net damage).
 
-- **Baseline** loses ~50 Sharpe/month — large, regular drawdowns from
-  trading reversions that never happen. The rolling z-score happily
-  signals deviations, but each deviation just continues to widen.
-- **AR** loses *worse* (~50% bigger losses) — the kill switch
-  correctly identifies the noise as "Danger" and sits out... but then
-  the HMM briefly re-flags MR (false dawn), the strategy re-enters,
-  gets re-killed, and pays slippage on the cycle. NOKSEK is the
-  textbook example of *transient regime flickers* destroying value
-  for the hard kill.
-- **MS-AR** loses *least* — the soft gearbox suppresses the worst
-  entries and doesn't compound losses from kill cycles. But it still
-  loses 35–44 Sharpe. *Less bad* is not *good*.
+**Aug 2025 — BuyHold *positive*, all strategies negative.** This is the
+most damning evidence in the entire experiment. The spread did
+something *favourable* over the month (+110 bps drift up), yet every
+trading strategy lost money — Baseline by 665 bps, AR by 255, MS-AR by
+349.
 
-**MS-AR's NOKSEK result is the most ambiguous evidence in our dataset.**
-It's the only context where MS-AR > Baseline in 3 / 3 months — but the
-entire pair is losing in absolute terms.
+Why? The strategies were *shorting* the up-drift. The z-score was
+high (spread had risen), classifier flagged Danger because of high
+variance during the drift, AR's kill gate fired infrequently but the
+strategy still managed 29 trades — and those trades almost all went
+the wrong way. Baseline did the same thing 96 times. *MS-AR was the
+only one that lost less than 50 % of Baseline's damage*, suggesting
+the gearbox at least suppressed some of the worst entries.
 
-The honest interpretation: **NOKSEK is a negative control**. Including
-it confirms the filters are doing something (the HMM clearly detects
-the noise), but the takeaway is that **no filter rescues a broken
-pair**. The filter is a refinement on top of a real edge, not a
-substitute for one.
+### 5.5.2 What NOKSEK really shows
+
+**NOKSEK is not failing because the pair is "noisy" or "uncointegrated".**
+The traditional negative-control framing — "no filter rescues a broken
+pair" — is true but incomplete. What NOKSEK demonstrates more
+specifically is that:
+
+> **The z-score trading rule is not symmetric in how it handles drift.**
+> When the spread drifts in the direction the z-score wants to take you
+> (calm months: long-bias by oscillation), the strategy makes money.
+> When the spread drifts in the opposite direction (NOKSEK 2024),
+> the strategy compounds losses by repeatedly opening shorts into the
+> drift.
+
+The HMM filter cannot fix this because both directions of drift look
+the same to a variance-based classifier — both produce a high-variance
+regime. The filter sees "Danger"; the trading rule still picks a
+direction based on z-sign, and that direction is determined by the
+drift itself, not by any persistent mean.
+
+### 5.5.3 So is the filter doing anything on NOKSEK?
+
+MS-AR consistently loses less than Baseline on NOKSEK (by 30–80 %
+across the 3 months). So yes, the gearbox is suppressing the worst
+entries. But going from "lose 2 200 bps" to "lose 1 530 bps" isn't an
+edge — it's *damage control on a strategy that should not be running*.
+
+**The honest takeaway**: NOKSEK shows the filter is *active* (the HMM
+detects something real) but *insufficient* (the trading rule's
+direction-sign is wrong). Fixing this requires changing the trading
+rule, not the filter — e.g. adding a separate cointegration-stability
+test that abstains entirely from drift months, or replacing the
+symmetric z-score entry with an asymmetric rule that explicitly
+prefers the direction of the recent drift.
 
 ---
 
@@ -217,13 +307,22 @@ Things we explicitly looked for in the data and did not see:
 3. **A regime where AR > MS-AR universally.** Only GBPEUR-Aug-24 has
    that pattern (25/27 sweep cells favour AR). Outside that single
    month-pair, MS-AR is robustly better.
-4. **A statistically distinguishable edge for any HMM-based strategy
+4. **A strategy that beat Buy & Hold in absolute terms during
+   GBPEUR-Aug-24.** BuyHold made +215.6 bps; the best strategy made
+   +44 bps. AR's "win" is a win *vs Baseline*, not a win in absolute
+   terms vs passive exposure.
+5. **A "calm-cointegration" month where Baseline far outperformed
+   passive.** Even in the best Baseline months (AUDNZD-Sep24 +312
+   vs BuyHold +99; GBPEUR-Sep24 +322 vs BuyHold +151), the pairs-trade
+   alpha on top of the drift was 2× the passive return — meaningful,
+   but not the order-of-magnitude edge the inflated tick-clock Sharpe
+   numbers in §4.1 might suggest. Most of the Baseline PnL is just
+   "spread happened to drift the way the z-rule liked".
+6. **A statistically distinguishable edge for any HMM-based strategy
    over Baseline at $n = 9$.** Even ignoring multiple-testing
    corrections, a paired test on the 6 non-NOKSEK Sharpes wouldn't
-   reject the null at any reasonable level. With 9 observations and a
-   high-variance metric like monthly Sharpe, we don't have the
-   statistical power to claim a long-run mean difference.
-5. **A "third regime" effect.** The default is $K = 2$. Briefly
+   reject the null at any reasonable level.
+7. **A "third regime" effect.** The default is $K = 2$. Briefly
    trying $K = 3$ (commented out in `MONTH.DEFAULT_CFG`) does not
    produce qualitatively different results — the EM splits the
    Danger regime into two micro-variants but the smoothed Danger
@@ -264,21 +363,31 @@ absolute number is presentational.
 
 ### Specific (about this dataset)
 
-- **GBPEUR August 2024** is a single example where the hard-kill HMM
-  filter dramatically outperformed Baseline. Sharpe +23.5 vs −0.5; AR
-  cut 80 % of Baseline's trades and earned 44 bps where Baseline lost
-  6 bps. This is the most empirically interesting single cell in the
-  9-month grid and warrants a focused write-up (plot the
-  per-fold Danger variance and Danger posterior; identify the calendar
-  windows when the kill was active; check macro calendars for known
-  events).
-- **NOKSEK** is structurally broken on tick data in 2024–25. No
-  trading filter rescues it. It serves as a useful negative control
-  and a check that our HMM detects noisy spreads correctly (it does —
-  Danger probability is persistently high).
+- **GBPEUR August 2024** is a strong-spread-drift month
+  (BuyHold +215.6 bps). The hard-kill HMM filter cut 80 % of trades,
+  achieved Sharpe +23.5 vs Baseline's −0.5, and captured ~20 % of the
+  available drift. AR's value here is **damage control on a strategy
+  fighting the drift**, not edge capture. Buy & Hold beat all three
+  strategies by a wide margin. This is the most empirically
+  interesting single cell in the 9-month grid and warrants a focused
+  write-up (plot the per-fold Danger variance, the spread itself,
+  identify when AR was in cash, cross-check against macro calendars).
+- **NOKSEK** is structurally broken on tick data in 2024–25. **The
+  most damning result is NOKSEK-Aug-25**: BuyHold made +110 bps but
+  every traded strategy lost 250–665 bps. The pair isn't "untradeable
+  because it's noisy" — it's "untradeable because our trading rule
+  systematically shorts directional drift". The HMM correctly flags
+  Danger; the trading rule's direction-sign is wrong; the filter can't
+  fix that.
 - **AUDNZD** performs best with Baseline in calm months (Sep-24,
-  Aug-25) and roughly tied with MS-AR in the marginally-losing month
-  (Aug-24). It's the cleanest "no need for a filter" example.
+  Aug-25). The pair is the cleanest example of a working cointegration
+  trade in the dataset; Baseline beats BuyHold by 2–3× in profitable
+  months, confirming there is mean-reversion alpha on top of the drift.
+- **Every "profitable" month in the dataset is also a drift month.**
+  We do not have a clean example of "the spread oscillated around a
+  flat mean and Baseline harvested the oscillations". AUDNZD-Aug-24
+  was the closest to flat (BuyHold +13 bps) and all strategies still
+  lost there.
 - **3-day rolling MS-AR(1) training** is sufficient for the regime
   model to converge on every trading day across every pair × month
   combination we tested. No skipped folds. The 500-tick-bar resolution
@@ -287,34 +396,46 @@ absolute number is presentational.
 
 ### General (about the methodology)
 
+- **The spread rarely sits still.** Every one of our 9 month-pairs
+  exhibited a non-trivial directional drift in the spread over the
+  month. The strongest pairs-trade alpha came from Baseline
+  *partially capturing* the drift via its z-rule's directional bias;
+  the worst losses came from Baseline *fighting* the drift the wrong
+  way (GBPEUR-Aug-24, NOKSEK throughout). This suggests that **before
+  applying any regime filter, an HF pairs-trade should first test
+  whether the cointegration premise (stable mean) actually holds for
+  the period being traded**.
 - **Soft beats hard, structurally.** MS-AR is uniformly preferable to
   AR as a way to use an HMM regime classifier, unless you have prior
-  reason to believe the period contains a *persistent* regime switch.
-  The slippage cost of hard kills around transient regime boundaries
-  is greater than the avoided-loss benefit in most market conditions.
+  reason to believe the period contains a *persistent* regime switch
+  or directional drift the strategy is fighting. The slippage cost of
+  hard kills around transient regime boundaries is greater than the
+  avoided-loss benefit in most market conditions.
 - **No filter beats both filters in calm cointegration months.** The
   regime filter is a refinement on top of a working edge, not an
   independent source of edge. If your underlying pair is cleanly
-  mean-reverting, adding an HMM filter strictly destroys value (more
-  parameters, more sensitivity to model misspecification, no upside).
-- **The regime filter pays off rarely but dramatically.** 1 / 9 cells
-  in our sample, with +24 Sharpe gain. The question of whether that
-  rate of pay-off justifies the filter depends on how often the rare
-  event occurs in live deployment — for which 9 observations is far
-  too few to estimate.
+  mean-reverting, adding an HMM filter strictly destroys value.
+- **The regime filter pays off rarely and modestly, never wins the
+  absolute race.** 1 / 9 cells where AR beats Baseline; 0 / 9 cells
+  where AR beats Buy & Hold. The filter is a *relative* refinement.
+- **The HMM's "Danger" regime is a high-variance marker, not a
+  direction marker.** It fires both when the spread is volatile
+  *around* its mean and when the spread is *drifting away* from its
+  mean. The trading rule, which only reads `Z_Score` (a sign and a
+  magnitude), cannot tell which case it's in. Both kill (AR) and
+  gearbox (MS-AR) reduce damage in drift months, but neither captures
+  the drift.
 - **End-of-day flattening is essential for clean experimentation.**
   Without it the gearbox can produce hundreds of overnight trade
-  flips, washing out the entire edge. With it, days are independent
-  experiments and the metric tables become interpretable.
+  flips, washing out the entire edge.
 - **Fixed-parameter testing reveals more than WFO-optimised testing.**
   The earlier two-year run with Optuna optimisation gave MS-AR a
   Sharpe of −3.x and 9 235 trades because Optuna picked extreme
-  parameters that maximised in-sample Sharpe via churn. Fixed
-  reasonable parameters expose the actual underlying dynamics.
+  parameters that maximised in-sample Sharpe via churn.
 - **Small, hand-picked experiments are more diagnostic than long
   aggregates.** The two-year aggregate hid the GBPEUR-Aug-24 finding
   by averaging it with the calm months. Splitting into 9 separate
-  month-pairs surfaced the result.
+  month-pairs surfaced both this and the NOKSEK-Aug-25 result.
 
 ---
 
