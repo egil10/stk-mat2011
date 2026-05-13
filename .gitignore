@@ -50,6 +50,9 @@ venv/
 # Jupyter
 .ipynb_checkpoints/
 
+# Notebook exports (md/html/pdf rendered from code/notebooks)
+code/exports/
+
 # OS
 .DS_Store
 
