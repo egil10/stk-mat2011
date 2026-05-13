@@ -423,47 +423,57 @@ class TEARSHEET:
 
         # Individual panel PDFs --------------------------------------------
         if save_individual:
-            panels = [
-                ('equity',        self._draw_equity,            (12, 4.5)),
-                ('drawdown',      self._draw_drawdown,          (12, 3.5)),
-                ('period_returns', self._draw_period_returns,   (12, 4.0)),
-                ('return_dist_linear', self._draw_return_dist_linear, (7, 4.0)),
-                ('return_dist_log',    self._draw_return_dist_log,    (7, 4.0)),
-            ]
-            win_panels = [
-                ('rolling_vol',    self._draw_rolling_vol,    (12, 4.0)),
-                ('rolling_sharpe', self._draw_rolling_sharpe, (12, 4.0)),
-            ]
-            for name, draw, size in panels:
-                try:
-                    fig_i, ax_i = plt.subplots(figsize=size)
-                    draw(ax_i, valid)
-                    plt.tight_layout()
-                    save_figure_pdf(
-                        fig_i,
-                        pdf_filename(self.pdf_prefix, name),
-                        pdf_dir=pdf_dir or self.pdf_dir,
-                        enabled=True,
-                    )
-                    plt.close(fig_i)
-                except Exception as e:
-                    print(f"  [skip individual {name}: {type(e).__name__}: {e}]")
-                    plt.close('all')
-            for name, draw, size in win_panels:
-                try:
-                    fig_i, ax_i = plt.subplots(figsize=size)
-                    draw(ax_i, valid, win)
-                    plt.tight_layout()
-                    save_figure_pdf(
-                        fig_i,
-                        pdf_filename(self.pdf_prefix, name),
-                        pdf_dir=pdf_dir or self.pdf_dir,
-                        enabled=True,
-                    )
-                    plt.close(fig_i)
-                except Exception as e:
-                    print(f"  [skip individual {name}: {type(e).__name__}: {e}]")
-                    plt.close('all')
+            self.save_individual_perf_panels(pdf_dir=pdf_dir)
+
+    def save_individual_perf_panels(self, pdf_dir=None):
+        """Save each performance panel as its own PDF (no dashboard render).
+
+        Split out from plot_performance so callers can save individuals
+        without re-rendering the combined dashboard, and so a failure here
+        cannot take down the dashboard call upstream."""
+        valid = [s for s in self.strats if f'Return_{s}' in self.df.columns]
+        win = self._rolling_window(len(self.df))
+        panels = [
+            ('equity',             self._draw_equity,             (12, 4.5)),
+            ('drawdown',           self._draw_drawdown,           (12, 3.5)),
+            ('period_returns',     self._draw_period_returns,     (12, 4.0)),
+            ('return_dist_linear', self._draw_return_dist_linear, (7, 4.0)),
+            ('return_dist_log',    self._draw_return_dist_log,    (7, 4.0)),
+        ]
+        win_panels = [
+            ('rolling_vol',    self._draw_rolling_vol,    (12, 4.0)),
+            ('rolling_sharpe', self._draw_rolling_sharpe, (12, 4.0)),
+        ]
+        for name, draw, size in panels:
+            try:
+                fig_i, ax_i = plt.subplots(figsize=size)
+                draw(ax_i, valid)
+                plt.tight_layout()
+                save_figure_pdf(
+                    fig_i,
+                    pdf_filename(self.pdf_prefix, name),
+                    pdf_dir=pdf_dir or self.pdf_dir,
+                    enabled=True,
+                )
+                plt.close(fig_i)
+            except Exception as e:
+                print(f"  [skip individual {name}: {type(e).__name__}: {e}]")
+                plt.close('all')
+        for name, draw, size in win_panels:
+            try:
+                fig_i, ax_i = plt.subplots(figsize=size)
+                draw(ax_i, valid, win)
+                plt.tight_layout()
+                save_figure_pdf(
+                    fig_i,
+                    pdf_filename(self.pdf_prefix, name),
+                    pdf_dir=pdf_dir or self.pdf_dir,
+                    enabled=True,
+                )
+                plt.close(fig_i)
+            except Exception as e:
+                print(f"  [skip individual {name}: {type(e).__name__}: {e}]")
+                plt.close('all')
 
     # ------------------------------------------------------------------
     # Positions & regimes — readable version
@@ -608,22 +618,28 @@ class TEARSHEET:
         plt.show()
 
         if save_individual:
-            for name, fn in [
-                ('markov_variances',   self._draw_markov_variances),
-                ('markov_means',       self._draw_markov_means),
-                ('markov_persistence', self._draw_markov_persistence),
-            ]:
-                try:
-                    fig_i, ax_i = plt.subplots(figsize=(7, 4))
-                    fn(ax_i)
-                    plt.tight_layout()
-                    save_figure_pdf(
-                        fig_i,
-                        pdf_filename(self.pdf_prefix, name),
-                        pdf_dir=pdf_dir or self.pdf_dir,
-                        enabled=True,
-                    )
-                    plt.close(fig_i)
-                except Exception as e:
-                    print(f"  [skip individual {name}: {type(e).__name__}: {e}]")
-                    plt.close('all')
+            self.save_individual_markov_panels(pdf_dir=pdf_dir)
+
+    def save_individual_markov_panels(self, pdf_dir=None):
+        """Save each Markov-dynamics panel as its own PDF (no dashboard render)."""
+        if self.params is None or 'Safe_Mean' not in self.params.columns:
+            return
+        for name, fn in [
+            ('markov_variances',   self._draw_markov_variances),
+            ('markov_means',       self._draw_markov_means),
+            ('markov_persistence', self._draw_markov_persistence),
+        ]:
+            try:
+                fig_i, ax_i = plt.subplots(figsize=(7, 4))
+                fn(ax_i)
+                plt.tight_layout()
+                save_figure_pdf(
+                    fig_i,
+                    pdf_filename(self.pdf_prefix, name),
+                    pdf_dir=pdf_dir or self.pdf_dir,
+                    enabled=True,
+                )
+                plt.close(fig_i)
+            except Exception as e:
+                print(f"  [skip individual {name}: {type(e).__name__}: {e}]")
+                plt.close('all')
