@@ -90,11 +90,11 @@ class ENGINE:
                            n_init=1, **kwargs):
         """
         AR(1)-HMM on Spread_Level per the pairs trading spec:
-            z_t = mu^k + rho^k * (z_{t-1} - mu^k) + eps_t^k
+            S_t = mu^k + rho^k * (S_{t-1} - mu^k) + eps_t^k
 
-        Regimes classified by sigma:
-          - smallest sigma = mean-reverting / quiet (MR)
-          - largest  sigma = danger / volatile        (DR)
+        Regimes classified by innovation variance (paper §4.7):
+          - smallest sigma = mean-reverting / quiet (MR), safe to trade
+          - largest  sigma = drifting / volatile    (DR), avoid
 
         winsorize_std : clip the training spread to +/- winsorize_std * std before
             fitting the HMM. Stabilises the EM solver on fat-tailed series.
@@ -102,6 +102,8 @@ class ENGINE:
             pure numerical-conditioning trick). Estimated parameters are
             unscaled before being stored, so downstream code sees them in the
             original Spread_Level units.
+        n_init : number of EM starting points. >1 uses statsmodels'
+            built-in random-search and keeps the highest-likelihood fit.
         """
         if random_seed is not None: np.random.seed(random_seed)
 
@@ -122,12 +124,16 @@ class ENGINE:
             spread_train = spread_train * scale
 
         # statsmodels emits a torrent of ValueWarning / ConvergenceWarning per
-        # EM call.  They're not actionable here (we already winsorise + scale
-        # for stability) and they swamp the notebook output when walk-forward
-        # refits every trading day.  Suppress locally rather than globally.
-        # n_init > 1 runs the EM from `n_init` random seeds and keeps the
-        # highest-likelihood solution (paper §4.5 — EM converges to a local
-        # max, multi-seed mitigates the worst seeds).
+        # EM call. They're not actionable here (we already winsorise + scale
+        # for stability) and they swamp notebook output. Suppress locally.
+        #
+        # Multi-seed EM uses statsmodels' built-in random-search option
+        # `search_reps`: that many additional random starting points are
+        # explored on top of the default initialisation and the result with
+        # the highest log-likelihood is returned. This is the paper §4.5
+        # multi-restart procedure and is more robust than perturbing
+        # `start_params` by hand (which can land outside the valid logit
+        # range for the transition probabilities).
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
             spec = sm.tsa.MarkovAutoregression(
@@ -138,26 +144,8 @@ class ENGINE:
                 switching_trend=True,
                 switching_variance=True,
             )
-            if n_init <= 1:
-                model = spec.fit(disp=False)
-            else:
-                rng = np.random.default_rng(random_seed or 0)
-                base = np.asarray(spec.start_params, dtype=float)
-                best = None
-                for s in range(int(n_init)):
-                    try:
-                        if s == 0:
-                            cand = spec.fit(disp=False)
-                        else:
-                            start = base + 0.1 * rng.standard_normal(base.size)
-                            cand = spec.fit(disp=False, start_params=start)
-                    except Exception:
-                        continue
-                    if best is None or cand.llf > best.llf:
-                        best = cand
-                if best is None:
-                    best = spec.fit(disp=False)
-                model = best
+            extra = max(int(n_init) - 1, 0)
+            model = spec.fit(disp=False, search_reps=extra)
 
         # --- Extract per-regime parameters and undo the scale transform ---
         # If y_scaled = scale * y, then const_scaled = scale * const_orig and
@@ -171,8 +159,9 @@ class ENGINE:
                    for i in range(k_regimes)]
         sigmas = [float(np.sqrt(v)) for v in variances]
 
-        # --- Classify regimes by Volatility (sigma) ---
-        # Quiet (MR) = lowest variance, Volatile (DR) = highest variance.
+        # --- Classify regimes by Volatility (sigma) — paper §4.7 ---
+        # MR (quiet, safe to trade) = regime with smallest sigma
+        # DR (danger, volatile)     = regime with largest sigma
         mr_idx = int(np.argmin(sigmas))
         non_mr = [j for j in range(k_regimes) if j != mr_idx]
         dr_idx = int(non_mr[int(np.argmax([sigmas[j] for j in non_mr]))])
@@ -301,15 +290,19 @@ class ENGINE:
         Independent per-day fit. Each calendar day is taken in isolation:
         the rolling-OLS hedge ratio, the rolling z-score and the MS-AR(1)
         regime model are all fit on that day's bars only. Days that do
-        not have enough bars are skipped.
+        not have enough bars (or where the HMM fails) are skipped with
+        a logged reason.
 
         This is the "in-sample, day-by-day" mode used in code/strats/:
         the smoothed posteriors γ_t^MR returned by the HMM are kept as-is
         (no OOS forward filter) so the strategies operate on the model's
         best estimate of the day's regime structure.
 
-        Returns the concatenated per-day DataFrame and a per-day param
-        tracker (one row per fitted day).
+        Returns:
+            fitted_df  — concatenated per-day DataFrame with all engine
+                         columns; usable directly by BACKTESTER.run().
+            params_df  — one row per successfully fitted day, indexed
+                         by Date.
         """
         df = df.copy()
         df['Date'] = df.index.date
@@ -325,11 +318,13 @@ class ENGINE:
                   f"| n_init={n_init} | days={len(unique_days)}")
 
         out_chunks, params = [], []
+        n_short, n_failed = 0, 0
         for d in unique_days:
             day_df = df[df['Date'] == d].copy()
             if len(day_df) < min_bars:
+                n_short += 1
                 if verbose:
-                    print(f"  {d}: skipped (only {len(day_df)} bars, need ≥{min_bars})")
+                    print(f"  {d}: skipped ({len(day_df)} bars, need ≥{min_bars})")
                 continue
             try:
                 eng = cls(day_df)
@@ -341,6 +336,7 @@ class ENGINE:
                     n_init=n_init,
                 )
             except Exception as e:
+                n_failed += 1
                 if verbose:
                     print(f"  {d}: HMM failed ({type(e).__name__}: {e})")
                 continue
@@ -349,13 +345,23 @@ class ENGINE:
                 'Date': d,
                 'Bars': len(day_df),
                 'Beta': eng.beta, 'Alpha': eng.alpha,
-                'Safe_Variance': eng.safe_variance, 'Danger_Variance': eng.danger_variance,
-                'Safe_Mean': eng.safe_mean, 'Danger_Mean': eng.danger_mean,
-                'P_Safe_Safe': eng.p_safe_safe, 'P_Danger_Danger': eng.p_danger_danger,
-                'MR_Rho': eng.mr_rho, 'DR_Rho': eng.dr_rho,
+                'MR_Sigma': eng.mr_sigma, 'DR_Sigma': eng.dr_sigma,
+                'MR_Rho':   eng.mr_rho,   'DR_Rho':   eng.dr_rho,
+                'MR_Mu':    eng.mr_mu,    'DR_Mu':    eng.dr_mu,
+                'P_MR_MR':  eng.p_safe_safe, 'P_DR_DR': eng.p_danger_danger,
             })
+
+        n_ok = len(out_chunks)
+        if verbose:
+            print(f"  -> {n_ok}/{len(unique_days)} days fitted "
+                  f"({n_short} too short, {n_failed} HMM failures)")
+
         if not out_chunks:
-            raise RuntimeError("each_day: no day produced a valid fit.")
+            raise RuntimeError(
+                f"each_day: no day produced a valid fit "
+                f"(short={n_short}, failed={n_failed}). "
+                f"Try smaller coint_window/z_window or a smaller bar threshold."
+            )
         return pd.concat(out_chunks), pd.DataFrame(params).set_index('Date')
 
     @classmethod

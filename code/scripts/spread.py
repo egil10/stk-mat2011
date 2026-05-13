@@ -141,36 +141,146 @@ class SPREAD:
         return pd.concat(all_bars).sort_index()
 
     def build(self, file_paths, verbose=True):
+        """Dispatch on `price_agg`.
+
+        * price_agg='last'  → legacy path: each leg is aggregated into bars
+          independently, then leg-B bars are merge_asof-aligned to leg-A bar
+          timestamps. Preserves the behaviour of `code/monthly/` notebooks.
+        * price_agg='mean'  → new path: ticks are synchronised at the tick
+          level first (union of A/B events + forward-fill), and pre-averaging
+          (paper eq 2.2) is then applied to the synchronised stream so the
+          legs share identical L-tick block boundaries. This is the version
+          used by `code/strats/`.
+        """
         if len(file_paths) != 4:
             raise ValueError("Provide exactly 4 file paths: [ask_a, bid_a, ask_b, bid_b]")
 
+        if self.price_agg == 'mean':
+            return self._build_synced_preavg(file_paths, verbose)
+
+        return self._build_legacy(file_paths, verbose)
+
+    # ------------------------------------------------------------------
+    # Legacy build (price_agg='last'): per-leg bars, then merge_asof
+    # ------------------------------------------------------------------
+    def _build_legacy(self, file_paths, verbose):
         bars_a = self._aggregate_bars(file_paths[0], file_paths[1])
         bars_b = self._aggregate_bars(file_paths[2], file_paths[3])
 
-        # Rename per-asset and prepare merge
         bars_a = bars_a.rename(columns={'close': 'Asset_A', 'bid': 'Bid_A', 'ask': 'Ask_A'})
         bars_b = bars_b.rename(columns={'close': 'Asset_B', 'bid': 'Bid_B', 'ask': 'Ask_B'})
 
         df_pairs = pd.merge_asof(
             bars_a, bars_b,
             left_index=True, right_index=True,
-            direction='backward'
+            direction='backward',
         ).dropna().sort_index()
 
+        df_pairs = self._add_derived_columns(df_pairs)
+        self.data = df_pairs
+        if verbose:
+            print(f"built {len(self.data)} bars (legacy, price_agg='last')")
+        return self.data
+
+    # ------------------------------------------------------------------
+    # New build (price_agg='mean'): tick-level sync + L-tick pre-averaging
+    # ------------------------------------------------------------------
+    def _load_leg_ticks(self, ask_files, bid_files):
+        """Load and bid/ask-align ticks for one leg → DataFrame with
+        columns [datetime, bid, ask, mid]. Session filter is applied inside
+        `_load_parquet`.  Empty inputs raise.
+        """
+        ask = self._load_parquet(ask_files if isinstance(ask_files, list) else [ask_files])
+        bid = self._load_parquet(bid_files if isinstance(bid_files, list) else [bid_files])
+        if ask.empty or bid.empty:
+            raise ValueError("empty leg ticks after session filter")
+
+        ask = ask.sort_values('datetime').rename(columns={'price': 'ask'})
+        bid = bid.sort_values('datetime').rename(columns={'price': 'bid'})
+
+        # As-of merge ask onto bid (we keep the ASK clock as the leg's tick
+        # clock — this matches the legacy code and is symmetric in the
+        # synchronisation step below).
+        leg = pd.merge_asof(
+            ask[['datetime', 'ask']],
+            bid[['datetime', 'bid']],
+            on='datetime',
+            direction='backward',
+        ).dropna()
+        leg['mid'] = 0.5 * (leg['bid'] + leg['ask'])
+        return leg[['datetime', 'bid', 'ask', 'mid']]
+
+    def _build_synced_preavg(self, file_paths, verbose):
+        ask_a, bid_a, ask_b, bid_b = file_paths
+
+        # 1. Per-leg tick stream
+        leg_a = self._load_leg_ticks(ask_a, bid_a).set_index('datetime').add_prefix('a_')
+        leg_b = self._load_leg_ticks(ask_b, bid_b).set_index('datetime').add_prefix('b_')
+
+        # 2. Tick-level synchronisation: union of timestamps + forward-fill.
+        #    At each event (a tick of either leg), both legs carry their
+        #    most recent observed values. This is the "synchronised
+        #    tick-time" series used by eq (2.2) of the paper.
+        synced = pd.concat([leg_a, leg_b], axis=1).sort_index().ffill()
+        synced = synced.dropna(subset=['a_mid', 'b_mid'])
+
+        # 3. Collapse identical timestamps that appear from both legs
+        synced = synced[~synced.index.duplicated(keep='last')]
+
+        L = int(self.threshold)
+        n = len(synced)
+        if n < L:
+            raise ValueError(
+                f"only {n} synchronised ticks; need at least L={L} for one block"
+            )
+
+        # 4. Block every L consecutive synchronised ticks → 1 pre-averaged bar.
+        block_id = (np.arange(n) // L).astype(np.int64)
+        synced = synced.reset_index().rename(columns={'index': 'datetime'})
+        # If the index name is None pandas calls it 'index'; pin it:
+        if 'datetime' not in synced.columns:
+            synced = synced.rename(columns={synced.columns[0]: 'datetime'})
+        synced['block'] = block_id
+
+        bars = synced.groupby('block').agg(
+            timestamp=('datetime', 'last'),
+            Asset_A=('a_mid', 'mean'),   # pre-averaging on the mid
+            Asset_B=('b_mid', 'mean'),
+            Bid_A=('a_bid', 'last'),     # last quote of the block → realistic slippage
+            Ask_A=('a_ask', 'last'),
+            Bid_B=('b_bid', 'last'),
+            Ask_B=('b_ask', 'last'),
+            n_ticks=('a_mid', 'size'),
+        ).set_index('timestamp').sort_index()
+
+        # 5. Discard the trailing partial block (so every bar has exactly L ticks).
+        bars = bars[bars['n_ticks'] == L].drop(columns=['n_ticks'])
+
+        df_pairs = self._add_derived_columns(bars)
+        self.data = df_pairs
+        if verbose:
+            print(
+                f"built {len(self.data)} pre-averaged bars (L={L} synced ticks/block, "
+                f"{n:,} synced ticks total)"
+            )
+        return self.data
+
+    # ------------------------------------------------------------------
+    # Shared post-processing
+    # ------------------------------------------------------------------
+    def _add_derived_columns(self, df_pairs):
+        df_pairs = df_pairs.copy()
         df_pairs['Log_A'] = np.log(df_pairs['Asset_A'])
         df_pairs['Log_B'] = np.log(df_pairs['Asset_B'])
         df_pairs['Return_A'] = df_pairs['Log_A'].diff()
         df_pairs['Return_B'] = df_pairs['Log_B'].diff()
-
-        # Half-spread in bps at each bar, per asset (for slippage modeling)
-        df_pairs['HalfSpread_A_bps'] = 0.5 * (df_pairs['Ask_A'] - df_pairs['Bid_A']) / df_pairs['Asset_A'] * 10000
-        df_pairs['HalfSpread_B_bps'] = 0.5 * (df_pairs['Ask_B'] - df_pairs['Bid_B']) / df_pairs['Asset_B'] * 10000
-
-        df_pairs = df_pairs.dropna()
-        self.data = df_pairs
-        if verbose:
-            print(f"built {len(self.data)} rows")
-        return self.data
+        df_pairs['HalfSpread_A_bps'] = (
+            0.5 * (df_pairs['Ask_A'] - df_pairs['Bid_A']) / df_pairs['Asset_A'] * 10000
+        )
+        df_pairs['HalfSpread_B_bps'] = (
+            0.5 * (df_pairs['Ask_B'] - df_pairs['Bid_B']) / df_pairs['Asset_B'] * 10000
+        )
+        return df_pairs.dropna()
 
     def plot_diagnostics(self, save_pdf=None, pdf_dir=None, filename=None):
         """
