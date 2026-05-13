@@ -33,9 +33,11 @@ code/data/*.csv
 !code/pdfs/
 !code/pdfs/**
 !code/pdfs/**/*.pdf
-!code/materials/**
-!code/materials/**/*.pdf
 !/*.pdf
+
+# Supervisor/source materials — keep locally but do not commit
+code/materials/
+code/materials/**
 
 # Python
 __pycache__/
