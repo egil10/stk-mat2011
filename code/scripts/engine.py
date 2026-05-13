@@ -341,15 +341,25 @@ class ENGINE:
                     print(f"  {d}: HMM failed ({type(e).__name__}: {e})")
                 continue
             out_chunks.append(eng.data)
-            params.append({
+            row = {
                 'Date': d,
                 'Bars': len(day_df),
                 'Beta': eng.beta, 'Alpha': eng.alpha,
+                # New (paper-aligned) names
                 'MR_Sigma': eng.mr_sigma, 'DR_Sigma': eng.dr_sigma,
                 'MR_Rho':   eng.mr_rho,   'DR_Rho':   eng.dr_rho,
                 'MR_Mu':    eng.mr_mu,    'DR_Mu':    eng.dr_mu,
                 'P_MR_MR':  eng.p_safe_safe, 'P_DR_DR': eng.p_danger_danger,
-            })
+                # Back-compat aliases so the existing TEARSHEET plot helpers
+                # (which look for Safe_/Danger_ columns) keep working.
+                'Safe_Variance':   eng.safe_variance,
+                'Danger_Variance': eng.danger_variance,
+                'Safe_Mean':       eng.safe_mean,
+                'Danger_Mean':     eng.danger_mean,
+                'P_Safe_Safe':     eng.p_safe_safe,
+                'P_Danger_Danger': eng.p_danger_danger,
+            }
+            params.append(row)
 
         n_ok = len(out_chunks)
         if verbose:

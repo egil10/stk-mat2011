@@ -256,111 +256,161 @@ class TEARSHEET:
     # Main performance plot (fixed cumulative + richer panels)
     # ------------------------------------------------------------------
 
-    def plot_performance(self, save_pdf=None, pdf_dir=None, filename=None):
-        valid = [s for s in self.strats if f'Return_{s}' in self.df.columns]
+    # ------------------------------------------------------------------
+    # Performance plot — individual panels extracted into _draw_* helpers
+    # so each can also be saved as its own PDF.
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _rolling_window(n_bars):
+        return max(200, n_bars // 100)
+
+    def _draw_equity(self, ax, valid):
         BPS = 10000
-
-        fig = plt.figure(figsize=(14, 16))
-        gs = gridspec.GridSpec(5, 2, height_ratios=[2, 1, 1.2, 1.2, 1.2],
-                               hspace=0.45, wspace=0.25)
-
-        # --- Panel 1: Equity Curve (full width) --------------------------
-        ax1 = fig.add_subplot(gs[0, :])
         for s in valid:
             cum = self.df[f'Return_{s}'].fillna(0).cumsum() * BPS
-            ax1.plot(self.df.index, cum, color=self.COLORS[s], lw=1.5, label=s)
-        ax1.set_title("Cumulative Strategy Returns (bps)", fontsize=14, fontweight='bold')
-        ax1.set_ylabel("Cumulative PnL (bps)")
-        ax1.axhline(0, color='black', lw=0.8, alpha=0.5)
-        ax1.legend(loc='upper left', frameon=True)
-        ax1.grid(True, alpha=0.3)
+            ax.plot(self.df.index, cum, color=self.COLORS[s], lw=1.5, label=s)
+        ax.set_title("Cumulative Strategy Returns (bps)", fontweight='bold')
+        ax.set_ylabel("Cumulative PnL (bps)")
+        ax.axhline(0, color='black', lw=0.8, alpha=0.5)
+        ax.legend(loc='upper left', frameon=True)
+        ax.grid(True, alpha=0.3)
 
-        # --- Panel 2: Drawdown (full width) ------------------------------
-        ax2 = fig.add_subplot(gs[1, :], sharex=ax1)
+    def _draw_drawdown(self, ax, valid):
+        BPS = 10000
         for s in valid:
             cum = self.df[f'Return_{s}'].fillna(0).cumsum() * BPS
             dd = cum - cum.cummax()
-            ax2.fill_between(self.df.index, dd, 0,
-                             color=self.COLORS[s], alpha=0.35, label=f'{s}')
-        ax2.set_title("Drawdown (bps)", fontsize=12, fontweight='bold')
-        ax2.set_ylabel("Drawdown")
-        ax2.legend(loc='lower left')
-        ax2.grid(True, alpha=0.3)
+            ax.fill_between(self.df.index, dd, 0,
+                            color=self.COLORS[s], alpha=0.35, label=s)
+        ax.set_title("Drawdown (bps)", fontweight='bold')
+        ax.set_ylabel("Drawdown")
+        ax.legend(loc='lower left')
+        ax.grid(True, alpha=0.3)
 
-        # --- Panel 3: Monthly Returns Bar Chart (full width) -------------
-        ax3 = fig.add_subplot(gs[2, :])
-        if isinstance(self.df.index, pd.DatetimeIndex):
-            width = 0.27
-            monthly = {s: self.df[f'Return_{s}'].fillna(0).resample('ME').sum() * BPS
-                       for s in valid}
-            months = next(iter(monthly.values())).index
-            x = np.arange(len(months))
-            for i, s in enumerate(valid):
-                ax3.bar(x + (i - 1) * width, monthly[s].values, width,
-                        color=self.COLORS[s], label=s, alpha=0.85)
-            ax3.set_xticks(x)
-            ax3.set_xticklabels([d.strftime('%Y-%m') for d in months],
-                                rotation=45, ha='right', fontsize=8)
-            ax3.axhline(0, color='black', lw=0.8)
-            ax3.set_title("Monthly Returns (bps)", fontsize=12, fontweight='bold')
-            ax3.set_ylabel("Return (bps)")
-            ax3.legend(loc='upper right')
-            ax3.grid(True, axis='y', alpha=0.3)
+    def _draw_period_returns(self, ax, valid):
+        """Per-period return bars. Aggregates by **day** when the sample
+        covers <= 2 calendar months (typical for the strats/ notebooks),
+        otherwise by month. This avoids the one-fat-bar chart that
+        appears when each_day data is just a single month."""
+        BPS = 10000
+        if not isinstance(self.df.index, pd.DatetimeIndex) or not valid:
+            return
 
-        # --- Panel 4a: Rolling Volatility --------------------------------
-        ax4 = fig.add_subplot(gs[3, 0], sharex=ax1)
-        win = max(200, len(self.df) // 100)  # ~1% of bars
+        try:
+            months_covered = len(self.df.index.to_period('M').unique())
+        except Exception:
+            months_covered = 99
+        if months_covered <= 2:
+            rule, label, fmt = 'D', 'Daily', '%Y-%m-%d'
+        else:
+            rule, label, fmt = 'ME', 'Monthly', '%Y-%m'
+
+        bins = {s: self.df[f'Return_{s}'].fillna(0).resample(rule).sum() * BPS
+                for s in valid}
+        idx_full = next(iter(bins.values())).index
+        # numpy-pure masking so pandas alignment quirks can't bite us
+        total_abs = np.zeros(len(idx_full), dtype=float)
+        for s in valid:
+            total_abs = total_abs + np.abs(bins[s].to_numpy())
+        nonzero = total_abs > 0
+        if not nonzero.any():
+            return
+        idx = idx_full[nonzero]
+        values = {s: bins[s].to_numpy()[nonzero] for s in valid}
+
+        width = 0.27
+        x = np.arange(len(idx))
+        for i, s in enumerate(valid):
+            ax.bar(x + (i - 1) * width, values[s], width,
+                   color=self.COLORS[s], label=s, alpha=0.85)
+        ax.set_xticks(x)
+        ax.set_xticklabels([pd.Timestamp(d).strftime(fmt) for d in idx],
+                           rotation=45, ha='right', fontsize=8)
+        ax.axhline(0, color='black', lw=0.8)
+        ax.set_title(f"{label} returns (bps)", fontweight='bold')
+        ax.set_ylabel("Return (bps)")
+        ax.legend(loc='upper right', fontsize=8)
+        ax.grid(True, axis='y', alpha=0.3)
+
+    def _draw_rolling_vol(self, ax, valid, win):
+        BPS = 10000
         for s in valid:
             rv = self.df[f'Return_{s}'].fillna(0).rolling(win).std() * np.sqrt(win) * BPS
-            ax4.plot(self.df.index, rv, color=self.COLORS[s], lw=1.3, label=s)
-        ax4.set_title(f"Rolling Volatility ({win}-bar window)", fontsize=11, fontweight='bold')
-        ax4.set_ylabel("Vol (bps)")
-        ax4.legend(loc='upper right', fontsize=8)
-        ax4.grid(True, alpha=0.3)
+            ax.plot(self.df.index, rv, color=self.COLORS[s], lw=1.3, label=s)
+        ax.set_title(f"Rolling volatility ({win}-bar window)", fontweight='bold', fontsize=11)
+        ax.set_ylabel("Vol (bps)")
+        ax.legend(loc='upper right', fontsize=8)
+        ax.grid(True, alpha=0.3)
 
-        # --- Panel 4b: Rolling Sharpe ------------------------------------
-        ax5 = fig.add_subplot(gs[3, 1], sharex=ax1)
+    def _draw_rolling_sharpe(self, ax, valid, win):
         for s in valid:
             r = self.df[f'Return_{s}'].fillna(0)
             rs = r.rolling(win).mean() / r.rolling(win).std() * np.sqrt(win)
-            ax5.plot(self.df.index, rs, color=self.COLORS[s], lw=1.3, label=s)
-        ax5.axhline(0, color='black', lw=0.8, alpha=0.5)
-        ax5.set_title(f"Rolling Sharpe ({win}-bar window)", fontsize=11, fontweight='bold')
-        ax5.set_ylabel("Sharpe")
-        ax5.legend(loc='upper right', fontsize=8)
-        ax5.grid(True, alpha=0.3)
+            ax.plot(self.df.index, rs, color=self.COLORS[s], lw=1.3, label=s)
+        ax.axhline(0, color='black', lw=0.8, alpha=0.5)
+        ax.set_title(f"Rolling Sharpe ({win}-bar window)", fontweight='bold', fontsize=11)
+        ax.set_ylabel("Sharpe")
+        ax.legend(loc='upper right', fontsize=8)
+        ax.grid(True, alpha=0.3)
 
-        # --- Panel 5a: Return Distribution (linear, clipped) -------------
-        ax6 = fig.add_subplot(gs[4, 0])
+    def _draw_return_dist_linear(self, ax, valid):
+        BPS = 10000
         for s in valid:
             active = (self.df[f'Return_{s}'].fillna(0) * BPS)
             active = active[active != 0]
             if len(active):
                 clip = np.percentile(np.abs(active), 99)
-                ax6.hist(active.clip(-clip, clip), bins=60, alpha=0.5,
-                         color=self.COLORS[s], label=s, density=True)
-        ax6.axvline(0, color='black', ls='--', lw=1)
-        ax6.set_title("Active Bar Returns (99% clipped)", fontsize=11, fontweight='bold')
-        ax6.set_xlabel("Return (bps)")
-        ax6.set_ylabel("Density")
-        ax6.legend(loc='upper right', fontsize=8)
-        ax6.grid(True, alpha=0.3)
+                ax.hist(active.clip(-clip, clip), bins=60, alpha=0.5,
+                        color=self.COLORS[s], label=s, density=True)
+        ax.axvline(0, color='black', ls='--', lw=1)
+        ax.set_title("Active bar returns (99% clipped)", fontweight='bold', fontsize=11)
+        ax.set_xlabel("Return (bps)")
+        ax.set_ylabel("Density")
+        ax.legend(loc='upper right', fontsize=8)
+        ax.grid(True, alpha=0.3)
 
-        # --- Panel 5b: Tail Distribution (log) ---------------------------
-        ax7 = fig.add_subplot(gs[4, 1])
+    def _draw_return_dist_log(self, ax, valid):
+        BPS = 10000
         for s in valid:
             active = (self.df[f'Return_{s}'].fillna(0) * BPS)
             active = active[active != 0]
             if len(active):
-                ax7.hist(active, bins=80, alpha=0.5, color=self.COLORS[s],
-                         label=s, density=True, log=True)
-        ax7.axvline(0, color='black', ls='--', lw=1)
-        ax7.set_title("Return Distribution (log y, tails visible)",
-                      fontsize=11, fontweight='bold')
-        ax7.set_xlabel("Return (bps)")
-        ax7.set_ylabel("Density (log)")
-        ax7.legend(loc='upper right', fontsize=8)
-        ax7.grid(True, alpha=0.3)
+                ax.hist(active, bins=80, alpha=0.5, color=self.COLORS[s],
+                        label=s, density=True, log=True)
+        ax.axvline(0, color='black', ls='--', lw=1)
+        ax.set_title("Return distribution (log y, tails visible)",
+                     fontweight='bold', fontsize=11)
+        ax.set_xlabel("Return (bps)")
+        ax.set_ylabel("Density (log)")
+        ax.legend(loc='upper right', fontsize=8)
+        ax.grid(True, alpha=0.3)
+
+    def plot_performance(self, save_pdf=None, pdf_dir=None, filename=None,
+                         save_individual=False):
+        valid = [s for s in self.strats if f'Return_{s}' in self.df.columns]
+        win = self._rolling_window(len(self.df))
+
+        # Combined dashboard ------------------------------------------------
+        # Same panels as before, slightly less tall figure.
+        fig = plt.figure(figsize=(14, 14))
+        gs = gridspec.GridSpec(5, 2, height_ratios=[2, 1, 1.2, 1.2, 1.2],
+                               hspace=0.55, wspace=0.25)
+        ax_eq   = fig.add_subplot(gs[0, :])
+        ax_dd   = fig.add_subplot(gs[1, :], sharex=ax_eq)
+        ax_per  = fig.add_subplot(gs[2, :])
+        ax_vol  = fig.add_subplot(gs[3, 0], sharex=ax_eq)
+        ax_shr  = fig.add_subplot(gs[3, 1], sharex=ax_eq)
+        ax_dlin = fig.add_subplot(gs[4, 0])
+        ax_dlog = fig.add_subplot(gs[4, 1])
+
+        self._draw_equity(ax_eq, valid)
+        self._draw_drawdown(ax_dd, valid)
+        self._draw_period_returns(ax_per, valid)
+        self._draw_rolling_vol(ax_vol, valid, win)
+        self._draw_rolling_sharpe(ax_shr, valid, win)
+        self._draw_return_dist_linear(ax_dlin, valid)
+        self._draw_return_dist_log(ax_dlog, valid)
 
         plt.tight_layout()
         save_figure_pdf(
@@ -370,6 +420,50 @@ class TEARSHEET:
             enabled=self.save_pdf if save_pdf is None else save_pdf,
         )
         plt.show()
+
+        # Individual panel PDFs --------------------------------------------
+        if save_individual:
+            panels = [
+                ('equity',        self._draw_equity,            (12, 4.5)),
+                ('drawdown',      self._draw_drawdown,          (12, 3.5)),
+                ('period_returns', self._draw_period_returns,   (12, 4.0)),
+                ('return_dist_linear', self._draw_return_dist_linear, (7, 4.0)),
+                ('return_dist_log',    self._draw_return_dist_log,    (7, 4.0)),
+            ]
+            win_panels = [
+                ('rolling_vol',    self._draw_rolling_vol,    (12, 4.0)),
+                ('rolling_sharpe', self._draw_rolling_sharpe, (12, 4.0)),
+            ]
+            for name, draw, size in panels:
+                try:
+                    fig_i, ax_i = plt.subplots(figsize=size)
+                    draw(ax_i, valid)
+                    plt.tight_layout()
+                    save_figure_pdf(
+                        fig_i,
+                        pdf_filename(self.pdf_prefix, name),
+                        pdf_dir=pdf_dir or self.pdf_dir,
+                        enabled=True,
+                    )
+                    plt.close(fig_i)
+                except Exception as e:
+                    print(f"  [skip individual {name}: {type(e).__name__}: {e}]")
+                    plt.close('all')
+            for name, draw, size in win_panels:
+                try:
+                    fig_i, ax_i = plt.subplots(figsize=size)
+                    draw(ax_i, valid, win)
+                    plt.tight_layout()
+                    save_figure_pdf(
+                        fig_i,
+                        pdf_filename(self.pdf_prefix, name),
+                        pdf_dir=pdf_dir or self.pdf_dir,
+                        enabled=True,
+                    )
+                    plt.close(fig_i)
+                except Exception as e:
+                    print(f"  [skip individual {name}: {type(e).__name__}: {e}]")
+                    plt.close('all')
 
     # ------------------------------------------------------------------
     # Positions & regimes — readable version
@@ -454,49 +548,56 @@ class TEARSHEET:
         plt.show()
 
     # ------------------------------------------------------------------
-    # Markov dynamics (unchanged from yours — small polish)
+    # Markov dynamics — slim 1x3 horizontal layout (was 3x1 vertical)
     # ------------------------------------------------------------------
 
-    def plot_markov_dynamics(self, save_pdf=None, pdf_dir=None, filename=None):
+    def _draw_markov_variances(self, ax):
+        ax.plot(self.params.index, self.params['Danger_Variance'],
+                color='#d62728', label='Danger $\\sigma^2$', lw=1.3)
+        ax.plot(self.params.index, self.params['Safe_Variance'],
+                color='#2ca02c', label='Safe $\\sigma^2$', lw=1.3)
+        ax.set_yscale('log')
+        ax.set_title("Markov variances (log)", fontweight='bold', fontsize=11)
+        ax.set_ylabel('$\\sigma^2$')
+        ax.tick_params(axis='x', rotation=30, labelsize=8)
+        ax.legend(fontsize=8)
+        ax.grid(True, alpha=0.3)
+
+    def _draw_markov_means(self, ax):
+        ax.plot(self.params.index, self.params['Danger_Mean'] * 10000,
+                color='#8b0000', label='Danger $\\mu$', lw=1.3)
+        ax.plot(self.params.index, self.params['Safe_Mean'] * 10000,
+                color='#006400', label='Safe $\\mu$', lw=1.3)
+        ax.axhline(0, color='black', ls='--', lw=1)
+        ax.set_title("Markov expected returns", fontweight='bold', fontsize=11)
+        ax.set_ylabel("$\\mu$ (bps)")
+        ax.tick_params(axis='x', rotation=30, labelsize=8)
+        ax.legend(fontsize=8)
+        ax.grid(True, alpha=0.3)
+
+    def _draw_markov_persistence(self, ax):
+        ax.plot(self.params.index, self.params['P_Danger_Danger'],
+                color='#fc9272', label='P(Danger|Danger)', lw=1.3)
+        ax.plot(self.params.index, self.params['P_Safe_Safe'],
+                color='#a1d99b', label='P(Safe|Safe)', lw=1.3)
+        ax.set_title("Regime persistence", fontweight='bold', fontsize=11)
+        ax.set_ylabel("Probability")
+        ax.set_ylim(0, 1.05)
+        ax.tick_params(axis='x', rotation=30, labelsize=8)
+        ax.legend(fontsize=8)
+        ax.grid(True, alpha=0.3)
+
+    def plot_markov_dynamics(self, save_pdf=None, pdf_dir=None, filename=None,
+                             save_individual=False):
         if self.params is None or 'Safe_Mean' not in self.params.columns:
             print("Markov parameters not found in df_params.")
             return
 
-        fig = plt.figure(figsize=(14, 10))
-        gs = gridspec.GridSpec(3, 1, hspace=0.35)
-
-        ax1 = fig.add_subplot(gs[0])
-        ax1.plot(self.params.index, self.params['Danger_Variance'],
-                 color='#d62728', label='Danger $\\sigma^2$', lw=1.3)
-        ax1.plot(self.params.index, self.params['Safe_Variance'],
-                 color='#2ca02c', label='Safe $\\sigma^2$', lw=1.3)
-        ax1.set_yscale('log')
-        ax1.set_title("Rolling Markov Variances (log scale)", fontweight='bold')
-        ax1.legend()
-        ax1.grid(True, alpha=0.3)
-
-        ax2 = fig.add_subplot(gs[1], sharex=ax1)
-        ax2.plot(self.params.index, self.params['Danger_Mean'] * 10000,
-                 color='#8b0000', label='Danger $\\mu$ (bps)', lw=1.3)
-        ax2.plot(self.params.index, self.params['Safe_Mean'] * 10000,
-                 color='#006400', label='Safe $\\mu$ (bps)', lw=1.3)
-        ax2.axhline(0, color='black', ls='--', lw=1)
-        ax2.set_title("Rolling Markov Expected Returns", fontweight='bold')
-        ax2.set_ylabel("$\\mu$ (bps)")
-        ax2.legend()
-        ax2.grid(True, alpha=0.3)
-
-        ax3 = fig.add_subplot(gs[2], sharex=ax1)
-        ax3.plot(self.params.index, self.params['P_Danger_Danger'],
-                 color='#fc9272', label='P(Danger | Danger)', lw=1.3)
-        ax3.plot(self.params.index, self.params['P_Safe_Safe'],
-                 color='#a1d99b', label='P(Safe | Safe)', lw=1.3)
-        ax3.set_title("Regime Persistence", fontweight='bold')
-        ax3.set_ylabel("Probability")
-        ax3.set_ylim(0, 1.05)
-        ax3.legend()
-        ax3.grid(True, alpha=0.3)
-
+        # Horizontal 1x3 layout — much shorter than the old 14x10 stack.
+        fig, axes = plt.subplots(1, 3, figsize=(15, 4.2))
+        self._draw_markov_variances(axes[0])
+        self._draw_markov_means(axes[1])
+        self._draw_markov_persistence(axes[2])
         plt.tight_layout()
         save_figure_pdf(
             fig,
@@ -505,3 +606,24 @@ class TEARSHEET:
             enabled=self.save_pdf if save_pdf is None else save_pdf,
         )
         plt.show()
+
+        if save_individual:
+            for name, fn in [
+                ('markov_variances',   self._draw_markov_variances),
+                ('markov_means',       self._draw_markov_means),
+                ('markov_persistence', self._draw_markov_persistence),
+            ]:
+                try:
+                    fig_i, ax_i = plt.subplots(figsize=(7, 4))
+                    fn(ax_i)
+                    plt.tight_layout()
+                    save_figure_pdf(
+                        fig_i,
+                        pdf_filename(self.pdf_prefix, name),
+                        pdf_dir=pdf_dir or self.pdf_dir,
+                        enabled=True,
+                    )
+                    plt.close(fig_i)
+                except Exception as e:
+                    print(f"  [skip individual {name}: {type(e).__name__}: {e}]")
+                    plt.close('all')
