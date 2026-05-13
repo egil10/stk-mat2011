@@ -48,13 +48,27 @@ class BACKTESTER:
         self.data = df.copy()
 
     def run(self, z_quiet, z_volatile, exit_z, danger_threshold, fee_bps=0.5,
-            slippage_mode='half_spread', flatten_eod=False, **kwargs):
-
+            slippage_mode='half_spread', flatten_eod=False,
+            prob_smoothing=0, **kwargs):
+        """
+        prob_smoothing : int, default 0
+            Window of a centred-no-look-ahead rolling median applied to
+            MR_Prob / Danger_Regime_Prob before they enter the strategy.
+            0 (or 1) disables smoothing — this matches the paper. Set to
+            ≥2 to suppress single-bar regime flips at the cost of one bar
+            of lag.
+        """
         z_scores  = self.data['Z_Score'].values
 
-        # 1. Smooth probabilities to prevent transaction cost bleed
-        mr_probs = self.data['MR_Prob'].rolling(window=3).median().bfill().values
-        danger_probs = self.data['Danger_Regime_Prob'].rolling(window=3).median().bfill().values
+        # 1. Optional smoothing of regime probabilities (off by default;
+        #    paper uses the raw posteriors). When enabled, bfill is used
+        #    only to seed the very first (window-1) bars.
+        if prob_smoothing and prob_smoothing > 1:
+            mr_probs     = self.data['MR_Prob'].rolling(window=prob_smoothing).median().bfill().values
+            danger_probs = self.data['Danger_Regime_Prob'].rolling(window=prob_smoothing).median().bfill().values
+        else:
+            mr_probs     = self.data['MR_Prob'].values
+            danger_probs = self.data['Danger_Regime_Prob'].values
 
         base_allowed = np.ones(len(self.data), dtype=np.bool_)
         hard_allowed = np.where(np.isfinite(mr_probs), mr_probs >= (1.0 - danger_threshold), False)

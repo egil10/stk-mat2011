@@ -86,7 +86,8 @@ class ENGINE:
         return self.data.dropna(subset=['Spread_Level', 'Z_Score', 'Spread_Return'])
 
     def fit_markov_regimes(self, k_regimes=2, random_seed=42,
-                           winsorize_std=None, scaling=None, **kwargs):
+                           winsorize_std=None, scaling=None,
+                           n_init=1, **kwargs):
         """
         AR(1)-HMM on Spread_Level per the pairs trading spec:
             z_t = mu^k + rho^k * (z_{t-1} - mu^k) + eps_t^k
@@ -124,16 +125,39 @@ class ENGINE:
         # EM call.  They're not actionable here (we already winsorise + scale
         # for stability) and they swamp the notebook output when walk-forward
         # refits every trading day.  Suppress locally rather than globally.
+        # n_init > 1 runs the EM from `n_init` random seeds and keeps the
+        # highest-likelihood solution (paper §4.5 — EM converges to a local
+        # max, multi-seed mitigates the worst seeds).
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
-            model = sm.tsa.MarkovAutoregression(
+            spec = sm.tsa.MarkovAutoregression(
                 spread_train,
                 k_regimes=k_regimes,
                 order=1,
                 switching_ar=True,
                 switching_trend=True,
                 switching_variance=True,
-            ).fit(disp=False)
+            )
+            if n_init <= 1:
+                model = spec.fit(disp=False)
+            else:
+                rng = np.random.default_rng(random_seed or 0)
+                base = np.asarray(spec.start_params, dtype=float)
+                best = None
+                for s in range(int(n_init)):
+                    try:
+                        if s == 0:
+                            cand = spec.fit(disp=False)
+                        else:
+                            start = base + 0.1 * rng.standard_normal(base.size)
+                            cand = spec.fit(disp=False, start_params=start)
+                    except Exception:
+                        continue
+                    if best is None or cand.llf > best.llf:
+                        best = cand
+                if best is None:
+                    best = spec.fit(disp=False)
+                model = best
 
         # --- Extract per-regime parameters and undo the scale transform ---
         # If y_scaled = scale * y, then const_scaled = scale * const_orig and
@@ -268,6 +292,71 @@ class ENGINE:
 
         test_data['AR_Phi'] = self.ar_phi if self.ar_phi is not None else np.nan
         return test_data
+
+    @classmethod
+    def each_day(cls, df, coint_window, z_window, k_regimes=2,
+                 winsorize_std=None, scaling=None, n_init=1,
+                 min_bars=None, verbose=True):
+        """
+        Independent per-day fit. Each calendar day is taken in isolation:
+        the rolling-OLS hedge ratio, the rolling z-score and the MS-AR(1)
+        regime model are all fit on that day's bars only. Days that do
+        not have enough bars are skipped.
+
+        This is the "in-sample, day-by-day" mode used in code/strats/:
+        the smoothed posteriors γ_t^MR returned by the HMM are kept as-is
+        (no OOS forward filter) so the strategies operate on the model's
+        best estimate of the day's regime structure.
+
+        Returns the concatenated per-day DataFrame and a per-day param
+        tracker (one row per fitted day).
+        """
+        df = df.copy()
+        df['Date'] = df.index.date
+        unique_days = df['Date'].unique()
+        if min_bars is None:
+            min_bars = coint_window + z_window + 10
+
+        if verbose:
+            winsor_str = "off" if winsorize_std in (None, 0) else f"{winsorize_std}σ"
+            scale_str  = "off" if scaling       in (None, 0, 1) else f"x{scaling}"
+            print(f"Each-day fit | coint_window={coint_window} | z_window={z_window} "
+                  f"| k_regimes={k_regimes} | winsor={winsor_str} | scale={scale_str} "
+                  f"| n_init={n_init} | days={len(unique_days)}")
+
+        out_chunks, params = [], []
+        for d in unique_days:
+            day_df = df[df['Date'] == d].copy()
+            if len(day_df) < min_bars:
+                if verbose:
+                    print(f"  {d}: skipped (only {len(day_df)} bars, need ≥{min_bars})")
+                continue
+            try:
+                eng = cls(day_df)
+                eng.fit_cointegration(coint_window=coint_window, z_window=z_window)
+                eng.fit_markov_regimes(
+                    k_regimes=k_regimes,
+                    winsorize_std=winsorize_std,
+                    scaling=scaling,
+                    n_init=n_init,
+                )
+            except Exception as e:
+                if verbose:
+                    print(f"  {d}: HMM failed ({type(e).__name__}: {e})")
+                continue
+            out_chunks.append(eng.data)
+            params.append({
+                'Date': d,
+                'Bars': len(day_df),
+                'Beta': eng.beta, 'Alpha': eng.alpha,
+                'Safe_Variance': eng.safe_variance, 'Danger_Variance': eng.danger_variance,
+                'Safe_Mean': eng.safe_mean, 'Danger_Mean': eng.danger_mean,
+                'P_Safe_Safe': eng.p_safe_safe, 'P_Danger_Danger': eng.p_danger_danger,
+                'MR_Rho': eng.mr_rho, 'DR_Rho': eng.dr_rho,
+            })
+        if not out_chunks:
+            raise RuntimeError("each_day: no day produced a valid fit.")
+        return pd.concat(out_chunks), pd.DataFrame(params).set_index('Date')
 
     @classmethod
     def walk_forward(cls, df, train_days, coint_window, z_window, k_regimes=2,

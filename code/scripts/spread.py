@@ -21,11 +21,19 @@ class SPREAD:
     """
     def __init__(self, agg_type='volume', threshold=1000,
                  active_days=None, active_hours=(10, 14),
+                 price_agg='last',
                  save_pdf=False, pdf_dir=None, pdf_prefix="spread"):
         if agg_type not in ('volume', 'tick'):
             raise ValueError("agg_type must be 'volume' or 'tick'")
+        if price_agg not in ('last', 'mean'):
+            raise ValueError("price_agg must be 'last' or 'mean'")
         self.agg_type = agg_type
         self.threshold = threshold
+        # 'mean' triggers Jacod-style pre-averaging on the mid: each bar's
+        # representative mid price is the average of the N tick mids in the
+        # bar, rather than the last tick. Bid/ask remain 'last' so that
+        # half-spread costs reflect the actual quote at the bar boundary.
+        self.price_agg = price_agg
         self.active_days = active_days if active_days is not None else [0, 1, 2, 3, 4]
         self.active_hours = active_hours
         self.save_pdf = save_pdf
@@ -116,9 +124,10 @@ class SPREAD:
                 carryover_ticks = (carryover_ticks + n_ticks) % self.threshold
 
             # 6. Compress into final Bars for this month
+            mid_agg = self.price_agg  # 'last' or 'mean' (pre-averaging)
             bars = df_ticks.groupby('bar_id').agg(
                 timestamp=('datetime', 'last'),
-                close=('mid_price', 'last'),
+                close=('mid_price', mid_agg),
                 bid=('bid_price', 'last'),
                 ask=('ask_price', 'last'),
             ).set_index('timestamp').sort_index()
