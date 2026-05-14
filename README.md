@@ -1,4 +1,4 @@
-# STK-MAT2011 — Hidden Markov Models for High-Frequency FX Pairs Trading
+# Hidden Markov Models for High-Frequency FX Pairs Trading
 
 Three cointegrated FX pairs. Four trading rules. One question: can a hidden Markov model tell us *when* the spread is mean-reverting and *when* it has slipped into a regime where the textbook trade quietly bleeds through transaction costs?
 
