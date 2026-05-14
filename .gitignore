@@ -36,6 +36,7 @@ code/data/*.csv
 !/*.pdf
 
 # Supervisor/source materials — keep locally but do not commit
+/materials/
 code/materials/
 code/materials/**
 
@@ -51,6 +52,7 @@ venv/
 .ipynb_checkpoints/
 
 # Notebook exports (md/html/pdf rendered from code/notebooks)
+/exports/
 code/exports/
 
 # OS
