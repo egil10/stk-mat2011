@@ -21,13 +21,13 @@ All four strategies see the same cointegration spread $S_t$ and the same rolling
 
 **(2) Baseline.** Classic Bollinger-style mean reversion on the cointegration $z$-score. With entry threshold $z_q$ and exit threshold $z_x$, the position $\pi_t \in \{-1, 0, +1\}$ is updated by
 
-$$\pi_t \;=\; \begin{cases}+1 & \pi_{t-1}=0,\; Z_t < -z_q \\ -1 & \pi_{t-1}=0,\; Z_t > +z_q \\ \phantom{+}0 & \pi_{t-1}\neq 0,\; |Z_t| \leq z_x \\ \pi_{t-1} & \text{otherwise.}\end{cases}$$
+$$\pi_t \;=\; \begin{cases}+1 & \pi_{t-1}=0,\; Z_t < -z_q \\ -1 & \pi_{t-1}=0,\; Z_t > +z_q \\ \;\;\,0 & \pi_{t-1}\neq 0,\; |Z_t| \leq z_x \\ \pi_{t-1} & \text{otherwise.}\end{cases}$$
 
 Knows nothing about regimes. Open on a wide deviation, close on the mean-cross.
 
 **(3) AR.** Baseline plus a **binary danger gate**. With danger tolerance $\delta \in (0, 1)$,
 
-$$G_t \;=\; \mathbf{1}\bigl\{\gamma_t^{\mathrm{MR}} \geq 1-\delta\bigr\}, \qquad \pi_t \;=\; \begin{cases} 0 & G_t = 0,\\ \pi_t^{\mathrm{baseline}} & G_t = 1. \end{cases}$$
+$$G_t \;=\; \mathbf{1}\{\gamma_t^{\mathrm{MR}} \geq 1-\delta\}, \qquad \pi_t \;=\; \begin{cases} 0 & G_t = 0,\\ \pi_t^{\mathrm{baseline}} & G_t = 1. \end{cases}$$
 
 The gate is binary: trade exactly like the baseline, or sit in cash. Existing positions are liquidated as soon as the gate closes.
 
@@ -45,7 +45,7 @@ The `m-*` notebooks run the seven steps below **independently per trading day**.
 
 **1. Mid-price.** With $i \in \{A, B\}$ indexing the two legs of a pair and $P_t^{\mathrm{bid},i}$, $P_t^{\mathrm{ask},i}$ the prevailing top-of-book quotes,
 
-$$P_t^{\mathrm{mid},i} \;=\; \tfrac{1}{2}\bigl(P_t^{\mathrm{bid},i} + P_t^{\mathrm{ask},i}\bigr).$$
+$$P_t^{\mathrm{mid},i} \;=\; \tfrac{1}{2}\left(P_t^{\mathrm{bid},i} + P_t^{\mathrm{ask},i}\right).$$
 
 **2. Half-spread in basis points.** Used as the per-leg slippage charge in the back-test:
 
@@ -59,7 +59,7 @@ Same $L$, same block boundaries on both legs, so the pre-averaged series stay pe
 
 **4. Rolling cointegration.** Two non-stationary log-price series are cointegrated if some linear combination is stationary (Engle & Granger 1987). High-frequency FX is not globally cointegrated — $\beta$ drifts with liquidity, session structure, and pair-specific shocks — so we estimate $\beta_t$ by rolling OLS with window $W_\beta = 25$. Writing $x_s = \log P_s^{\mathrm{mid},B}$, $y_s = \log P_s^{\mathrm{mid},A}$, $\mathcal{W}_t = \{t-W_\beta+1,\ldots,t\}$:
 
-$$\beta_t \;=\; \frac{W_\beta \sum_{s \in \mathcal{W}_t} x_s y_s - \bigl(\sum_{s \in \mathcal{W}_t} x_s\bigr)\bigl(\sum_{s \in \mathcal{W}_t} y_s\bigr)}{W_\beta \sum_{s \in \mathcal{W}_t} x_s^{2} - \bigl(\sum_{s \in \mathcal{W}_t} x_s\bigr)^{2}}, \qquad \alpha_t \;=\; \tfrac{1}{W_\beta}\!\Bigl(\sum_{s \in \mathcal{W}_t} y_s - \beta_t \sum_{s \in \mathcal{W}_t} x_s\Bigr).$$
+$$\beta_t \;=\; \frac{W_\beta \sum_{s \in \mathcal{W}_t} x_s y_s - \left(\sum_{s \in \mathcal{W}_t} x_s\right)\left(\sum_{s \in \mathcal{W}_t} y_s\right)}{W_\beta \sum_{s \in \mathcal{W}_t} x_s^{2} - \left(\sum_{s \in \mathcal{W}_t} x_s\right)^{2}}, \qquad \alpha_t \;=\; \tfrac{1}{W_\beta}\left(\sum_{s \in \mathcal{W}_t} y_s - \beta_t \sum_{s \in \mathcal{W}_t} x_s\right).$$
 
 The cointegration spread and its strictly-causal one-step return are
 
@@ -69,15 +69,15 @@ The lag in $\beta_{t-1}$ ensures the hedge ratio is observable at the moment the
 
 **5. Rolling $z$-score.** Over a window $W_z = 15$,
 
-$$Z_t \;=\; \frac{S_t - \mu_t^{S}}{\sigma_t^{S}}, \quad \mu_t^{S} = \tfrac{1}{W_z}\!\sum_{s=t-W_z+1}^{t}\! S_s, \quad (\sigma_t^{S})^{2} = \tfrac{1}{W_z}\!\sum_{s=t-W_z+1}^{t}\!\bigl(S_s - \mu_t^{S}\bigr)^{2}.$$
+$$Z_t \;=\; \frac{S_t - \mu_t^{S}}{\sigma_t^{S}}, \quad \mu_t^{S} = \tfrac{1}{W_z}\sum_{s=t-W_z+1}^{t} S_s, \quad (\sigma_t^{S})^{2} = \tfrac{1}{W_z}\sum_{s=t-W_z+1}^{t}\left(S_s - \mu_t^{S}\right)^{2}.$$
 
 **6. Markov-switching AR(1) on the spread.** An AR(1) on $S_t$ with all three parameters switching according to an unobserved Markov chain $K_t \in \{1, 2\}$ (Hamilton 1989; Krolzig 1997):
 
-$$S_t \mid S_{t-1},\, K_t = k \;\sim\; \mathcal{N}\!\bigl(c^{(k)} + \rho^{(k)} S_{t-1},\; (\sigma^{(k)})^{2}\bigr), \qquad \mathbf{P} = \begin{pmatrix} p_{11} & p_{12} \\ p_{21} & p_{22} \end{pmatrix}, \qquad p_{ij} = \Pr(K_t = j \mid K_{t-1} = i).$$
+$$S_t \mid S_{t-1},\, K_t = k \;\sim\; \mathcal{N}\left(c^{(k)} + \rho^{(k)} S_{t-1},\; (\sigma^{(k)})^{2}\right), \qquad \mathbf{P} = \begin{pmatrix} p_{11} & p_{12} \\ p_{21} & p_{22} \end{pmatrix}, \qquad p_{ij} = \Pr(K_t = j \mid K_{t-1} = i).$$
 
 For $|\rho^{(k)}| < 1$ the regime mean is $\mu^{(k)} = c^{(k)} / (1 - \rho^{(k)})$, giving the mean-deviation form
 
-$$S_t \;=\; \mu^{(k)} + \rho^{(k)}\bigl(S_{t-1} - \mu^{(k)}\bigr) + \varepsilon_t^{(k)}, \qquad \varepsilon_t^{(k)} \sim \mathcal{N}\!\bigl(0,(\sigma^{(k)})^{2}\bigr).$$
+$$S_t \;=\; \mu^{(k)} + \rho^{(k)}\left(S_{t-1} - \mu^{(k)}\right) + \varepsilon_t^{(k)}, \qquad \varepsilon_t^{(k)} \sim \mathcal{N}\left(0,(\sigma^{(k)})^{2}\right).$$
 
 Values of $\rho^{(k)}$ close to zero correspond to fast mean reversion; values close to unity, to near-random-walk behaviour. The parameter set $\Theta = \{\nu, \mathbf{P}, c^{(k)}, \rho^{(k)}, \sigma^{(k)}\}$ is estimated by Expectation–Maximisation (Baum–Welch), with the E-step computing the smoothed posteriors
 
