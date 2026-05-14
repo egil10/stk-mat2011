@@ -1,160 +1,116 @@
-# Machine Learning for High-Frequency Time Series
+# Hidden Markov Models for High-Frequency FX Pairs Trading
 
+Pairs trading is one of the oldest ideas in quantitative finance — find two assets that move together, bet on the spread reverting. At minute resolution across years of tick data, that simple idea collides with regime shifts, transaction costs, and the brutal honesty of out-of-sample testing.
 
-## What This Is About
+This project tackles that collision head on. We build a regime-switching engine on top of cointegrated FX pairs, optimise it with walk-forward search, and judge it the only way that matters: on data it has never seen.
 
-Tick-by-tick financial data is one of the most information-dense environments you can study. At millisecond resolution, markets reveal microstructure dynamics that are completely invisible in daily or hourly data — bid-ask bounce, order flow clustering, volatility regime shifts, and fleeting arbitrage signals. This project dives into that world using modern machine learning.
+---
 
-The goal is to go beyond textbook time series analysis and wrestle with data that is messy, non-stationary, and enormous by design. If you can build models that work here, you can build models that work anywhere.
+## The Idea
 
+Spreads between cointegrated assets are mean-reverting — until they are not. A Hidden Markov Model identifies *when* mean-reversion is the right bet and *when* the spread has entered a danger regime and should be left alone. The HMM is the switch; the spread model is the trade.
 
-## Why High-Frequency Data?
+- **Cointegration** finds pairs whose log-prices share a stochastic trend
+- **Rolling OLS** estimates a time-varying hedge ratio
+- **AR(1)-HMM** classifies each bar into a mean-revert or danger state
+- **GARCH** sizes the z-score by current conditional volatility
+- **Walk-forward optimisation** picks entry/exit thresholds without peeking
 
-At the tick level, markets expose their mechanics:
+---
 
-- **Microstructure effects** — bid-ask bounce and order flow create autocorrelation patterns that break random walk assumptions
-- **Regime switching** — markets cycle between calm and turbulent states that require adaptive, state-dependent models
-- **Information asymmetry** — short-term price signals are embedded in order flow and tick patterns before they aggregate away
-- **Scale** — millions of observations per symbol per month demand efficient, vectorized computation
+## The Three Systems
 
-### The Real Challenges
+| Pair System | Notebook | What It Tests |
+|---|---|---|
+| **AUDUSD / NZDUSD** | `Y-AUDNZD.ipynb`, `m-audnzd.ipynb` | Antipodean commodity-linked cointegration |
+| **GBPUSD / EURUSD** | `Y-GBPEUR.ipynb`, `m-gbpeur.ipynb` | European majors against the dollar |
+| **EURNOK / EURSEK** | `Y-NOKSEK.ipynb`, `m-noksek.ipynb` | Nordic cross-rate co-movement |
 
-Working at this resolution is not just academically interesting — it is genuinely hard:
+`Y-*` notebooks run the full multi-year walk-forward. `m-*` notebooks isolate a single month for diagnostic depth.
 
-- **Noise** — tick prices are contaminated by microstructure; raw data is not your signal
-- **Non-stationarity** — regimes shift intraday, requiring models that can adapt or detect change
-- **Dimensionality** — traditional time series tools struggle with millions of correlated observations
-- **Overfitting** — rich data invites spurious patterns; disciplined regularization is essential
+---
 
+## The Pipeline
 
-## Methods Explored
+| Module | Role |
+|---|---|
+| `screener.py` | Engle–Granger cointegration, half-life, rolling diagnostics |
+| `engine.py` | Hedge ratio, AR(1)-HMM regime states, GARCH volatility |
+| `backtester.py` | Numba-accelerated z-score entry/exit with regime gating |
+| `wfo.py` | Optuna walk-forward search over entry/exit thresholds |
+| `tearsheet.py` | Out-of-sample performance reporting |
+| `plotting.py` · `descriptive.py` | Visual diagnostics and EDA |
+| `synthetic.py` · `month.py` | Synthetic stress tests and monthly slicing |
 
-**Regime-Switching Models**
-Hidden Markov Models and Markov-switching autoregression to identify latent market states. Combined with GARCH for state-dependent volatility dynamics.
-
-**Pre-averaging and Feature Engineering**
-Aggregating raw ticks into meaningful windows, and extracting microstructure features: bid-ask spreads, order flow imbalance, inter-tick durations.
-
-**Rolling Window Analysis**
-Fitting AR models on rolling windows to capture time-varying autocorrelation. Visualizing how model parameters evolve across the trading day.
-
-**Pairs Trading**
-Cointegration analysis to find mean-reverting relationships between currency pairs, with ML-enhanced spread modeling for strategy development.
-
+---
 
 ## The Models
 
-Every model in this project is a building block in the same hierarchy — from simple linear structure to full conditional heteroskedasticity. Understanding each step makes the next one obvious.
+Each model is a building block. Understanding each step makes the next one obvious.
 
 <br>
 
-**AR(p)** — Autoregressive
+**AR(1)** — Autoregressive spread dynamics
 
-The price at time $t$ is a linear combination of its own past $p$ values. The simplest possible structure for temporal dependence.
-
-$$y_t = c + \sum_{i=1}^{p} \phi_i\, y_{t-i} + \varepsilon_t$$
+$$y_t = c + \phi\, y_{t-1} + \varepsilon_t$$
 
 <br>
 
-**MA(q)** — Moving Average
+**GARCH(1, 1)** — Conditional volatility
 
-Instead of lagged prices, the model depends on lagged shocks. Short-lived, mean-reverting dynamics.
-
-$$y_t = \mu + \varepsilon_t + \sum_{j=1}^{q} \theta_j\, \varepsilon_{t-j}$$
+$$\sigma_t^2 = \omega + \alpha\, \varepsilon_{t-1}^2 + \beta\, \sigma_{t-1}^2$$
 
 <br>
 
-**ARMA(p, q)** — Autoregressive Moving Average
+**AR(1)-HMM** — Regime-switching mean reversion
 
-Combines both: persistent autocorrelation from AR, transient shock responses from MA.
+$$y_t \mid S_t = k \;\sim\; \mathcal{N}\!\left(c_k + \phi_k\, y_{t-1},\; \sigma_k^2\right),\qquad \Pr(S_t = j \mid S_{t-1} = i) = P_{ij}$$
 
-$$y_t = c + \sum_{i=1}^{p} \phi_i\, y_{t-i} + \varepsilon_t + \sum_{j=1}^{q} \theta_j\, \varepsilon_{t-j}$$
-
-<br>
-
-**ARIMA(p, d, q)** — Integrated
-
-Non-stationary series are differenced $d$ times before fitting ARMA. Handles trending prices without detrending by hand.
-
-$$\Delta^d y_t = c + \sum_{i=1}^{p} \phi_i\, \Delta^d y_{t-i} + \varepsilon_t + \sum_{j=1}^{q} \theta_j\, \varepsilon_{t-j}$$
+The HMM learns one $(c_k, \phi_k, \sigma_k)$ per regime and a transition matrix $P$. Trades are taken only in the regime where $|\phi_k| < 1$ and variance is contained — the rest of the time the system waits.
 
 <br>
 
-**ARIMAX(p, d, q)** — With Exogenous Variables
+**Standardised spread** — what the bot actually trades
 
-ARIMA extended with external regressors $x_{k,t}$ — order flow, spread, or other microstructure signals enter as covariates.
+$$z_t = \frac{y_t - \mu_t}{\sigma_t}$$
 
-$$\Delta^d y_t = c + \sum_{i=1}^{p} \phi_i\, \Delta^d y_{t-i} + \sum_{k=1}^{K} \beta_k\, x_{k,t} + \varepsilon_t + \sum_{j=1}^{q} \theta_j\, \varepsilon_{t-j}$$
+Enter when $|z_t|$ crosses the entry threshold *and* the HMM allows it. Exit on mean-cross or regime flip.
 
-<br>
+---
 
-**ARCH(q)** — Autoregressive Conditional Heteroskedasticity
+## Data
 
-Volatility is not constant — it clusters. ARCH models the conditional variance as a function of past squared residuals.
+Dukascopy tick data, resampled to one-minute bars, stored as Parquet.
 
-$$\sigma_t^2 = \omega + \sum_{j=1}^{q} \alpha_j\, \varepsilon_{t-j}^2$$
+| Coverage | Symbols | Span |
+|---|---|---|
+| **Majors** | EURUSD, GBPUSD, USDJPY, USDCHF, AUDUSD, NZDUSD | 2019 – Feb 2026 |
+| **Nordics** | EURNOK, EURSEK | Oct 2023 – Feb 2026 |
+| **Cross-rates** | EURCHF, USDZAR | Nov 2025 – Feb 2026 |
+| **Crypto** | BTCUSD, ETHUSD | Spot checks, 2024 – 2025 |
 
-<br>
+Sources: [Dukascopy](https://www.dukascopy.com/swiss/english/marketwatch/historical/) via [dukascopy-python](https://pypi.org/project/dukascopy-python/), with [HistData](https://www.histdata.com/) and [TrueFX](https://www.truefx.com/truefx-historical-downloads/) for cross-validation. Small CSV samples live in `code/data/samples/` for quick experimentation; full Parquet archives in `code/data/processed/`.
 
-**GARCH(p, q)** — Generalized ARCH
-
-Adds lagged variance terms to ARCH, capturing the long memory of volatility with far fewer parameters. The workhorse of financial volatility modeling.
-
-$$\sigma_t^2 = \omega + \sum_{i=1}^{p} \beta_i\, \sigma_{t-i}^2 + \sum_{j=1}^{q} \alpha_j\, \varepsilon_{t-j}^2$$
-
-In all models, $\varepsilon_t \sim \mathcal{N}(0,\, \sigma_t^2)$.
-
-<br>
+---
 
 ## Quick Start
 
 ```bash
 pip install -r requirements.txt
+jupyter lab code/notebooks/Y-AUDNZD.ipynb
 ```
 
-Data lives in `code/data/processed/` as compressed Parquet files. Small CSV samples (1 000 rows each) are available in `code/data/samples/` for quick experimentation.
+Notebooks read directly from `code/data/processed/`. Run any `Y-*.ipynb` end-to-end to reproduce the walk-forward results; rendered HTML and PDF copies live in `code/exports/`.
 
-
-## Data
-
-Three data sources, covering EUR/USD, EUR/CHF, USD/ZAR and a broad set of forex pairs. All stored as Parquet for fast, memory-efficient loading.
-
-### Sources
-
-| Source | Coverage | Format | Link |
-|--------|----------|--------|------|
-| **HistData** | 32 pairs · Jan–Feb 2026 | NinjaTrader tick CSV | [histdata.com](https://www.histdata.com/) |
-| **TrueFX** | 3 pairs · Nov 2025 – Jan 2026 | Tick CSV (bid/ask) | [truefx.com](https://www.truefx.com/truefx-historical-downloads/) |
-| **Dukascopy** | 3 pairs · Nov 2025 – Jan 2026 | API (bid/ask + volume) | [dukascopy.com](https://www.dukascopy.com/swiss/english/marketwatch/historical/) · [PyPI](https://pypi.org/project/dukascopy-python/) |
-
-### Volume Summary
-
-| Source | Files | Symbols | Total Ticks | Size on Disk |
-|--------|------:|--------:|------------:|-------------:|
-| HistData | 72 | 32 | ~48.5M | ~423 MB |
-| TrueFX | 18 | 3 | ~14.1M | ~122 MB |
-| Dukascopy | 18 | 3 | ~36.1M | ~331 MB |
-| **Total** | **108** | **35** | **~98.7M** | **~876 MB** |
-
-> HistData `---` means the Ask/Bid file was not downloaded for that symbol (Last price only). EUR/USD, BCO/USD and USD/ZAR include Ask/Bid from ASCII format files.
-
-### Processing Scripts
-
-| Script | Source | Purpose |
-|--------|--------|---------|
-| `code/scripts/p_hist.py` | HistData | Converts NinjaTrader + ASCII CSVs to Parquet |
-| `code/scripts/p_true.py` | TrueFX | Converts TrueFX tick CSVs to Parquet |
-| `code/scripts/p_duka.py` | Dukascopy | Downloads tick data via API and saves as Parquet |
-| `code/scripts/samp.py` | — | Generates small CSV samples from Parquet files |
-
+---
 
 ## Resources
 
-- [Course Page (UiO)](https://www.uio.no/studier/emner/matnat/math/STK-MAT2011/)
+- [Course Page (UiO STK-MAT2011)](https://www.uio.no/studier/emner/matnat/math/STK-MAT2011/)
+- [Dukascopy Historical Market Data](https://www.dukascopy.com/swiss/english/marketwatch/historical/)
 - [HistData — Free Forex Historical Data](https://www.histdata.com/)
 - [TrueFX — Historical Downloads](https://www.truefx.com/truefx-historical-downloads/)
-- [Dukascopy — Historical Market Data](https://www.dukascopy.com/swiss/english/marketwatch/historical/)
-- [dukascopy-python (PyPI)](https://pypi.org/project/dukascopy-python/)
 
+---
 
 <sub>University of Oslo · Department of Mathematics · Spring 2026</sub>
