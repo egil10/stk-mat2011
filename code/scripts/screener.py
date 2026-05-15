@@ -5,19 +5,29 @@ import matplotlib.pyplot as plt
 import statsmodels.api as sm
 from statsmodels.tsa.stattools import coint
 
+try:
+    from plotting import pdf_filename, save_figure_pdf
+except ImportError:
+    from .plotting import pdf_filename, save_figure_pdf
+
+
 class SCREENER:
     """
     Diagnostic screener for pairs trading. Provides both a full-sample view
     (Engle-Granger p-value, half-life, hedge ratio) and a rolling view
     showing how those diagnostics evolve over sub-samples of the data.
     """
-    def __init__(self, asset_a_series, asset_b_series):
+    def __init__(self, asset_a_series, asset_b_series,
+                 save_pdf=False, pdf_dir=None, pdf_prefix=None):
         df = pd.concat([asset_a_series, asset_b_series], axis=1).dropna()
         self.asset_a = df.iloc[:, 0]
         self.asset_b = df.iloc[:, 1]
         self.log_a = np.log(self.asset_a)
         self.log_b = np.log(self.asset_b)
-        self.rolling_df = None  
+        self.rolling_df = None
+        self.save_pdf = save_pdf
+        self.pdf_dir = pdf_dir
+        self.pdf_prefix = pdf_prefix
 
     # static helpers (per window)
     @staticmethod
@@ -85,7 +95,9 @@ class SCREENER:
         return self.rolling_df
 
     # reporting
-    def generate_report(self, rolling_window=2000, rolling_step=200, plot=True):
+    def generate_report(self, rolling_window=2000, rolling_step=200, plot=True,
+                        save_pdf=None, pdf_dir=None, pdf_prefix=None,
+                        plot_name='cointegration_screener'):
         """
         Full diagnostic report: both full-sample numbers and rolling summary.
         """
@@ -112,21 +124,27 @@ class SCREENER:
         print(f"  β: {rdf['beta'].mean():.4f} ±{beta_std:.4f} [{beta_range[0]:.4f}, {beta_range[1]:.4f}]")
 
         if plot:
-            self._plot_rolling()
+            self._plot_rolling(
+                save_pdf=save_pdf,
+                pdf_dir=pdf_dir,
+                pdf_prefix=pdf_prefix,
+                plot_name=plot_name,
+            )
 
         return p_val, half_life
 
     # plotting function
-    def _plot_rolling(self):
+    def _plot_rolling(self, save_pdf=None, pdf_dir=None, pdf_prefix=None,
+                      plot_name='cointegration_screener'):
         rdf = self.rolling_df
         beta_mean = rdf['beta'].mean()
-        
+
         panels = [
             ('p_value',   'tab:blue',   'Rolling Engle-Granger p-value', 'p-value',         'linear', [(0.05, '--', 'red', '5%'), (0.10, ':', 'orange', '10%')]),
             ('half_life', 'tab:purple', 'Rolling Half-Life',             'half-life (bars)', 'log',   []),
             ('beta',      'tab:green',  'Rolling Hedge Ratio',           'beta',             'linear', [(beta_mean, '--', 'black', f'mean={beta_mean:.3f}')]),
         ]
-        
+
         fig, axes = plt.subplots(3, 1, figsize=(12, 6), sharex=True)
         for ax, (col, color, title, ylabel, yscale, hlines) in zip(axes, panels):
             series = rdf[col].replace([np.inf, -np.inf], np.nan)
@@ -137,4 +155,16 @@ class SCREENER:
             ax.grid(True, alpha=0.3)
             if hlines:
                 ax.legend(loc='upper right')
-        plt.tight_layout(); plt.show()
+        plt.tight_layout()
+
+        enabled = self.save_pdf if save_pdf is None else save_pdf
+        prefix = pdf_prefix if pdf_prefix is not None else self.pdf_prefix
+        save_figure_pdf(
+            fig,
+            pdf_filename(prefix, plot_name),
+            pdf_dir=pdf_dir or self.pdf_dir,
+            enabled=enabled,
+        )
+
+        plt.show()
+        return fig
